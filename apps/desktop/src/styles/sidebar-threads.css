@@ -164,7 +164,23 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
+.sidebar-project-host-badge {
+  min-width: 0;
+  max-width: 7.5rem;
+  overflow: hidden;
+  flex: 0 1 auto;
+  margin-left: 2px;
+  border: 1px solid color-mix(in oklab, var(--ds-accent) 30%, transparent);
+  border-radius: var(--radius-round);
+  padding: 1px 5px;
+  background: color-mix(in oklab, var(--ds-accent) 10%, transparent);
+  color: var(--ds-text-muted);
+  font-size: var(--text-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sidebar-session-group-add {
   display: inline-flex;
   width: 24px;

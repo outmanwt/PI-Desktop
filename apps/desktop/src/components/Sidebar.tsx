@@ -99,12 +99,22 @@ type ProjectEntry = {
   meta: ProjectMeta;
   /** Best-effort git branch from the project workspace, if known. */
   branch?: string;
+  hostKey?: string;
+  hostLabel?: string;
+  remote?: boolean;
 };
 
 const VIEWPORT_PADDING = 8;
 
+/** Return the stable sidebar identity for a local or remote project scope. */
+export function projectEntryKey(path: string, hostKey?: string): string {
+  const normalized = normalizeProjectPath(path) ?? "";
+  return hostKey ? `remote:${hostKey}:${normalized}` : normalized;
+}
+
 /** Private MIME so a sidebar session drag is never mistaken for an OS file drop. */
 const SESSION_DRAG_MIME = "application/x-pi-desktop-session";
+
 
 type SidebarResizeState = {
   pointerId: number;
@@ -673,27 +683,40 @@ export function Sidebar({
   );
 
   const projectEntries = useMemo(() => {
-    const byPath = new Map<string, ProjectEntry>();
-    const add = (rawPath: string, name?: string, branch?: string, open = false) => {
+    const byKey = new Map<string, ProjectEntry>();
+    const add = (
+      rawPath: string,
+      name?: string,
+      branch?: string,
+      open = false,
+      hostKey?: string,
+      hostLabel?: string,
+    ) => {
       const normalized = normalizeProjectPath(rawPath);
       if (!normalized) return;
-      const existing = byPath.get(normalized);
+      const remote = Boolean(hostKey);
+      const key = projectEntryKey(rawPath, hostKey);
+      const existing = byKey.get(key);
       if (existing) {
         existing.open ||= open;
         if (name && existing.name === projectName(existing.path)) existing.name = name;
         if (branch && !existing.branch) existing.branch = branch;
+        if (hostLabel && !existing.hostLabel) existing.hostLabel = hostLabel;
         return;
       }
-      const meta = projectMetaFor(rawPath, projectMeta);
-      byPath.set(normalized, {
+      const meta = remote ? {} : projectMetaFor(rawPath, projectMeta);
+      byKey.set(key, {
         path: rawPath,
-        key: normalized,
+        key,
         name: projectName(rawPath, meta.name ?? name),
         sessions: [],
         open,
-        active: normalized === activeProjectPath,
+        active: !remote && normalized === activeProjectPath,
         meta,
         branch,
+        hostKey,
+        hostLabel,
+        remote,
       });
     };
     for (const path of openProjectPaths) {
@@ -706,12 +729,18 @@ export function Sidebar({
     for (const session of filtered) {
       const sessionPath = normalizeProjectPath(session.projectPath);
       if (!sessionPath) continue;
-      // A closed project remains discoverable in Projects, but its historical
-      // sessions must not recreate a sidebar tab that the user just closed.
-      const entry = byPath.get(sessionPath);
+      const remote = session.source === "remote" || Boolean(session.hostKey);
+      const entryKey = projectEntryKey(sessionPath, remote ? session.hostKey : undefined);
+      let entry = byKey.get(entryKey);
+      if (remote && !entry) {
+        add(sessionPath, undefined, undefined, false, session.hostKey, session.hostLabel);
+        entry = byKey.get(entryKey);
+      }
+      // A closed local project remains discoverable in Projects, but its
+      // historical sessions must not recreate a sidebar tab that was closed.
       if (entry) entry.sessions.push(session);
     }
-    const result = [...byPath.values()].filter(
+    const result = [...byKey.values()].filter(
       (entry) => showArchived || !entry.meta.archived,
     );
     for (const entry of result) entry.sessions.sort(compareSessions);
@@ -760,18 +789,15 @@ export function Sidebar({
     projectMeta,
     showArchived,
     displayProjectSort,
-    sessionMeta,
     compareSessions,
   ]);
 
-  // Look up project entries by normalized path so session rows can fetch the
-  // workspace name (and any other project metadata) for the hover card.
+  // Look up project entries by their complete local/remote scope key.
   const projectEntriesByPath = useMemo(() => {
     const map = new Map<string, ProjectEntry>();
     for (const entry of projectEntries) map.set(entry.key, entry);
     return map;
   }, [projectEntries]);
-
   projectEntriesRef.current = projectEntries;
 
   const finishProjectReorderPress = useCallback((opts?: { keepClickSuppressed?: boolean }) => {
@@ -945,7 +971,12 @@ export function Sidebar({
   ) => {
     const projectPath = session.projectPath ?? "";
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const entry = projectEntriesByPath.get(normalizedProjectPath ?? "");
+    const remote = session.source === "remote" || Boolean(session.hostKey);
+    const entry = normalizedProjectPath
+      ? projectEntriesByPath.get(
+          projectEntryKey(normalizedProjectPath, remote ? session.hostKey : undefined),
+        )
+      : undefined;
     revealSessionHoverCard({
       session: { ...session, title: taskTitle(session.title) },
       target,
@@ -1053,7 +1084,6 @@ export function Sidebar({
     window.clearTimeout(sessionPrefetchTimerRef.current);
     sessionPrefetchTimerRef.current = undefined;
   };
-
   const openSessionFromHover = useCallback(async (sessionId: string) => {
     cancelSessionPrefetch();
     hideSessionHoverCard();
@@ -1079,9 +1109,8 @@ export function Sidebar({
 
   useEffect(() => cancelSessionPrefetch, []);
 
-  const setCollapsed = (path: string, value: boolean) => {
-    const normalized = normalizeProjectPath(path) || path;
-    setProjectCollapsed(normalized, value);
+  const setCollapsed = (key: string, value: boolean) => {
+    setProjectCollapsed(key, value);
   };
 
   const setSort = (next: SessionSort) => {
@@ -1118,20 +1147,18 @@ export function Sidebar({
   const archiveSession = async (session: SessionSummary) => {
     const archived = sessionArchived(session, sessionMeta[session.id]);
     const wasActive = activeSessionId === session.id;
+    const remote = session.source === "remote" || Boolean(session.hostKey);
+    const scopeKey = session.projectPath
+      ? projectEntryKey(session.projectPath, remote ? session.hostKey : undefined)
+      : undefined;
     const next =
       !archived && wasActive
-        ? session.projectPath
-          ? projectEntries
-              .find((entry) => entry.key === normalizeProjectPath(session.projectPath))
-              ?.sessions.find(
-                (item) =>
-                  item.id !== session.id &&
-                  !sessionArchived(item, sessionMeta[item.id]),
-              )
+        ? scopeKey
+          ? projectEntries.find((entry) => entry.key === scopeKey)?.sessions.find(
+              (item) => item.id !== session.id && !sessionArchived(item, sessionMeta[item.id]),
+            )
           : temporarySessions.find(
-              (item) =>
-                item.id !== session.id &&
-                !sessionArchived(item, sessionMeta[item.id]),
+              (item) => item.id !== session.id && !sessionArchived(item, sessionMeta[item.id]),
             )
         : undefined;
     try {
@@ -1146,9 +1173,8 @@ export function Sidebar({
         return;
       }
       if (wasActive) {
-        // Archive first so an empty active slot is not reused as its own
-        // replacement. Restore it if creating the fallback slot fails.
         archiveSessionAction(session.id);
+        if (remote) return;
         try {
           await newSession({ projectPath: session.projectPath ?? null });
         } catch (error) {
@@ -1166,29 +1192,23 @@ export function Sidebar({
   const deleteSession = async (session: SessionSummary) => {
     closeMenus();
     const wasActive = activeSessionId === session.id;
-    const sameScope = session.projectPath
-      ? projectEntries.find(
-          (entry) => entry.key === normalizeProjectPath(session.projectPath),
-        )?.sessions ?? []
+    const remote = session.source === "remote" || Boolean(session.hostKey);
+    const scopeKey = session.projectPath
+      ? projectEntryKey(session.projectPath, remote ? session.hostKey : undefined)
+      : undefined;
+    const sameScope = scopeKey
+      ? projectEntries.find((entry) => entry.key === scopeKey)?.sessions ?? []
       : temporarySessions;
     const next = wasActive
       ? sameScope.find(
-          (item) =>
-            item.id !== session.id &&
-            !sessionArchived(item, sessionMeta[item.id]),
-        ) ?? projectEntries
-          .flatMap((entry) => entry.sessions)
-          .find(
-            (item) =>
-              item.id !== session.id &&
-              !sessionArchived(item, sessionMeta[item.id]),
-          )
+          (item) => item.id !== session.id && !sessionArchived(item, sessionMeta[item.id]),
+        )
       : undefined;
     try {
       await deleteSessionAction(session.id);
       if (wasActive) {
         if (next) await selectProjectSession(next);
-        else await newSession({ projectPath: session.projectPath ?? null });
+        else if (!remote) await newSession({ projectPath: session.projectPath ?? null });
       }
     } catch (error) {
       reportError(error);
@@ -1389,19 +1409,22 @@ export function Sidebar({
 
   const beginSessionDrag = useCallback(
     (event: ReactDragEvent<HTMLDivElement>, sessionId: string) => {
+      const session = sessions.find((item) => item.id === sessionId);
+      if (session?.source === "remote" || session?.hostKey) {
+        event.preventDefault();
+        return;
+      }
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData(SESSION_DRAG_MIME, sessionId);
       event.dataTransfer.setData("text/plain", sessionId);
       setDraggingSessionId(sessionId);
     },
-    [],
+    [sessions],
   );
-
   const endSessionDrag = useCallback(() => {
     setDraggingSessionId(null);
     setDropProjectKey(null);
   }, []);
-
   // A dragged row can unmount before its own `dragend` fires (sort refresh,
   // archive, delete), which would otherwise leave the drag session and the
   // group highlight active for the next, unrelated drag.
@@ -1441,10 +1464,16 @@ export function Sidebar({
     event: ReactDragEvent<HTMLElement>,
     entry: ProjectEntry,
   ) => {
+    if (entry.remote) return;
     const sessionId = sessionIdForDragOver(event.dataTransfer, draggingSessionId);
     if (!sessionId) return;
     const dragged = sessions.find((item) => item.id === sessionId);
-    if (!dragged || normalizeProjectPath(dragged.projectPath) === entry.key) return;
+    if (
+      !dragged ||
+      dragged.source === "remote" ||
+      dragged.hostKey ||
+      projectEntryKey(dragged.projectPath ?? "", dragged.hostKey) === entry.key
+    ) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     setDropProjectKey(entry.key);
@@ -1458,22 +1487,18 @@ export function Sidebar({
     event: ReactDragEvent<HTMLElement>,
     entry: ProjectEntry,
   ) => {
-    // The transfer payload is authoritative: a stale dragging id must never
-    // move a session the user did not drag.
+    if (entry.remote) return;
     const sessionId = sessionIdFromDrag(event.dataTransfer);
     setDraggingSessionId(null);
     setDropProjectKey(null);
     const dragged = sessionId
       ? sessions.find((item) => item.id === sessionId)
       : undefined;
-    // Without a session payload this is a native folder drop for the projects
-    // list, which the container handles.
-    if (!dragged) return;
+    if (!dragged || dragged.source === "remote" || dragged.hostKey) return;
     event.preventDefault();
     event.stopPropagation();
     void moveSessionToProject(dragged.id, entry.path, entry.name);
   };
-
   // Native folder drops on the projects list add or switch to that project.
   const onProjectsAreaDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
     if (!hasComposerFileDrag(event.dataTransfer)) return;
@@ -1519,8 +1544,11 @@ export function Sidebar({
     const meta = sessionMeta[session.id] ?? {};
     const normalizedProjectPath = normalizeProjectPath(session.projectPath);
     const temporary = options?.temporary ?? !normalizedProjectPath;
+    const remoteSession = session.source === "remote" || Boolean(session.hostKey);
     const owningProject = options?.global && normalizedProjectPath
-      ? projectEntriesByPath.get(normalizedProjectPath)?.name
+      ? projectEntriesByPath.get(
+          projectEntryKey(normalizedProjectPath, remoteSession ? session.hostKey : undefined),
+        )?.name
         ?? projectName(normalizedProjectPath, projectMetaFor(normalizedProjectPath, projectMeta).name)
       : t("nav.hoverCardTemporarySpace");
     const active = page === "chat" && selectedSessionId === session.id;
@@ -1538,9 +1566,9 @@ export function Sidebar({
         key={session.id}
         className={`thread-item ${active ? "active" : ""} ${archived ? "archived" : ""} ${draggingSessionId === session.id ? "is-dragging" : ""}`}
         data-sidebar-session-row={session.id}
-        draggable={!running}
+        draggable={!running && !remoteSession}
         onDragStart={(event) => {
-          if (running) {
+          if (running || remoteSession) {
             event.preventDefault();
             return;
           }
@@ -1713,8 +1741,8 @@ export function Sidebar({
             const target = event.target as HTMLElement | null;
             if (target?.closest("button, [data-action]")) return;
             void (async () => {
-              if (!entry.active && !(await selectProject(entry.path))) return;
-              setCollapsed(entry.path, !collapsedProject);
+              if (!entry.remote && !entry.active && !(await selectProject(entry.path))) return;
+              setCollapsed(entry.key, !collapsedProject);
             })();
           }}
           onContextMenu={(event) => {
@@ -1757,8 +1785,8 @@ export function Sidebar({
                 return;
               }
               void (async () => {
-                if (!entry.active && !(await selectProject(entry.path))) return;
-                setCollapsed(entry.path, !collapsedProject);
+                if (!entry.remote && !entry.active && !(await selectProject(entry.path))) return;
+                setCollapsed(entry.key, !collapsedProject);
               })();
             }}
           >
@@ -1777,6 +1805,7 @@ export function Sidebar({
               <IconFolder size={13} aria-hidden />
             )}
             <span>{entry.name}</span>
+            {entry.hostLabel ? <span className="sidebar-project-host-badge">[{entry.hostLabel}]</span> : null}
             {entry.active ? <span className="sidebar-project-active-dot" aria-label={t("project.active", { defaultValue: "Active" })} /> : null}
           </TooltipButton>
           <span id={`${projectId}-path-description`} className="sr-only">
@@ -1784,36 +1813,40 @@ export function Sidebar({
             {". "}
             {t("project.reorder", { name: entry.name, defaultValue: "Reorder {{name}}" })}
           </span>
-          <div className="sidebar-menu-wrap">
-            <TooltipButton
-              type="button"
-              className="thread-item-more project-more"
-              tooltip={t("project.openActions", { name: entry.name })}
-              ariaLabel={t("project.openActions", { name: entry.name })}
-              aria-haspopup="menu"
-              aria-expanded={isMenuOpen}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (isMenuOpen) {
-                  closeMenus();
-                  return;
-                }
-                placeMenu(event);
-                openProjectRowMenu(entry.key, event.currentTarget);
-              }}
-            >
-              <IconMore size={14} />
-            </TooltipButton>
-          </div>
-          <TooltipButton
-            type="button"
-            className="sidebar-session-group-add"
-            tooltip={entry.active ? t("project.newTask") : t("project.openAndNewTask", { defaultValue: "Open project and create task" })}
-            ariaLabel={entry.active ? t("project.newTask") : t("project.openAndNewTask", { defaultValue: "Open project and create task" })}
-            onClick={() => void createProjectSession(entry.path)}
-          >
-            <IconNewSession size={13} />
-          </TooltipButton>
+          {!entry.remote ? (
+            <>
+              <div className="sidebar-menu-wrap">
+                <TooltipButton
+                  type="button"
+                  className="thread-item-more project-more"
+                  tooltip={t("project.openActions", { name: entry.name })}
+                  ariaLabel={t("project.openActions", { name: entry.name })}
+                  aria-haspopup="menu"
+                  aria-expanded={isMenuOpen}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (isMenuOpen) {
+                      closeMenus();
+                      return;
+                    }
+                    placeMenu(event);
+                    openProjectRowMenu(entry.key, event.currentTarget);
+                  }}
+                >
+                  <IconMore size={14} />
+                </TooltipButton>
+              </div>
+              <TooltipButton
+                type="button"
+                className="sidebar-session-group-add"
+                tooltip={entry.active ? t("project.newTask") : t("project.openAndNewTask", { defaultValue: "Open project and create task" })}
+                ariaLabel={entry.active ? t("project.newTask") : t("project.openAndNewTask", { defaultValue: "Open project and create task" })}
+                onClick={() => void createProjectSession(entry.path)}
+              >
+                <IconNewSession size={13} />
+              </TooltipButton>
+            </>
+          ) : null}
         </div>
         <div
           id={`${projectId}-sessions`}

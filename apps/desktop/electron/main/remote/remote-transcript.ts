@@ -21,12 +21,20 @@ export function racpSessionToSummary(
   remoteSessionId: string,
   session: RacpSession,
   messageCount: number,
+  hostInfo?: { hostKey?: string; hostLabel?: string },
 ): SessionSummary {
+  const projectPath =
+    session.projectId ||
+    session.workspaceLabel ||
+    (hostInfo?.hostKey ? `remote://${hostInfo.hostKey}` : undefined);
   return {
     id: remoteSessionId,
     source: "remote",
     title: session.title,
     messageCount,
+    projectPath,
+    ...(hostInfo?.hostKey ? { hostKey: hostInfo.hostKey } : {}),
+    ...(hostInfo?.hostLabel ? { hostLabel: hostInfo.hostLabel } : {}),
     // RACP's mode and permission-mode literals are a subset of the renderer's,
     // so they pass through unchanged; `inherit` is desktop-only and never sent.
     mode: session.mode,
@@ -46,10 +54,11 @@ export function racpSessionToSummary(
 export function snapshotToSessionDetail(
   remoteSessionId: string,
   snapshot: RacpSessionSnapshot,
+  hostInfo?: { hostKey?: string; hostLabel?: string },
 ): SessionDetail {
   const messages = snapshot.items.map((item) => item.content as UiMessage);
   return {
-    ...racpSessionToSummary(remoteSessionId, snapshot.session, messages.length),
+    ...racpSessionToSummary(remoteSessionId, snapshot.session, messages.length, hostInfo),
     messages,
     hasMoreBefore: snapshot.hasMoreHistory,
     hasMoreAfter: false,

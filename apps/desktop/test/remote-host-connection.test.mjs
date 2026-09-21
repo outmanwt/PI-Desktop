@@ -174,7 +174,7 @@ test("close is idempotent and safe to call before open", async () => {
   await conn.close();
 });
 
-test("session/list failure leaves the connection registered for nothing but does not throw", async () => {
+test("session/list failure cleans up the connection so a later open can retry", async () => {
   const { conn, router, client } = setup({
     sessions: [makeSession("s1")],
     requestFailures: { "session/list": new Error("no route to host") },
@@ -184,5 +184,5 @@ test("session/list failure leaves the connection registered for nothing but does
     router.resolveBackend(IPC.invoke.sessionGet, [{ id: makeRemoteSessionId(HOST_KEY, "s1") }]),
     null,
   );
-  assert.equal(client.hasListener(), true);
+  assert.equal(client.hasListener(), false);
 });

@@ -34,6 +34,7 @@ export type RemoteHostClient = RemoteRacpClient & {
 
 export type RemoteHostConnectionOptions = {
   hostKey: string;
+  hostLabel?: string;
   client: RemoteHostClient;
   router: BackendRouter;
   /** Dispatch a local IPC event to the renderer. */
@@ -58,6 +59,10 @@ export interface RemoteHostConnection {
    * the caller's responsibility.
    */
   close(): Promise<void>;
+  /**
+   * Query the remote host for its durable sessions.
+   */
+  listSessions(): Promise<RacpSession[]>;
 }
 
 type SessionListResponse = { sessions: RacpSession[] };
@@ -65,32 +70,48 @@ type SessionListResponse = { sessions: RacpSession[] };
 export function createRemoteHostConnection(
   options: RemoteHostConnectionOptions,
 ): RemoteHostConnection {
-  const { hostKey, client, router, emit } = options;
+  const { hostKey, hostLabel, client, router, emit } = options;
   const log = options.log ?? (() => undefined);
   const backend: RemoteBackend = createRemoteBackend({
     hostKey,
+    ...(hostLabel ? { hostLabel } : {}),
     client,
     ...(options.newRequestId ? { newRequestId: options.newRequestId } : {}),
   });
-
   const registered = new Set<string>();
   let bridge: RemoteEventBridge | null = null;
   let unsubscribe: (() => void) | null = null;
   let opened = false;
+  let generation = 0;
 
-  const registerSession = async (hostSessionId: string): Promise<void> => {
+  const disposeOpenState = (): void => {
+    opened = false;
+    generation += 1;
+    unsubscribe?.();
+    unsubscribe = null;
+    bridge = null;
+    for (const remoteSessionId of registered) router.unregisterBackend(remoteSessionId);
+    registered.clear();
+  };
+
+  const registerSession = async (
+    hostSessionId: string,
+    expectedGeneration = generation,
+  ): Promise<void> => {
+    if (!opened || generation !== expectedGeneration) return;
     const remoteSessionId = makeRemoteSessionId(hostKey, hostSessionId);
     if (registered.has(remoteSessionId)) return;
     router.registerBackend(remoteSessionId, backend);
     registered.add(remoteSessionId);
     try {
       await client.request("events/subscribe", { scope: "session", sessionId: hostSessionId });
+      if (!opened || generation !== expectedGeneration) unregisterSession(hostSessionId);
     } catch (error) {
-      // A session-scope subscribe failure keeps the backend registered; the
-      // renderer can still fetch snapshot/history via request paths, and
-      // Stage 3b's reconnect logic will retry the stream. Errors that must
-      // surface to the user go through the RacpClient state channel instead.
-      log("warn", `events/subscribe failed for session ${hostSessionId}`, error);
+      if (opened && generation === expectedGeneration) {
+        log("warn", `events/subscribe failed for session ${hostSessionId}`, error);
+      } else {
+        unregisterSession(hostSessionId);
+      }
     }
   };
 
@@ -114,6 +135,8 @@ export function createRemoteHostConnection(
     hostKey,
     async open() {
       if (opened) return;
+      const expectedGeneration = generation + 1;
+      generation = expectedGeneration;
       opened = true;
       bridge = createRemoteEventBridge({
         hostKey,
@@ -122,11 +145,9 @@ export function createRemoteHostConnection(
         log: (level, message, data) => log(level, message, data),
       });
       unsubscribe = client.subscribe((envelope) => bridge?.handle(envelope));
-      // Subscribing to host scope BEFORE listing sessions closes the race: any
-      // `session.created` a peer emits between the two calls arrives as an
-      // event and is handled by the lifecycle path (idempotent register).
       try {
         await client.request("events/subscribe", { scope: "host" });
+        if (!opened || generation !== expectedGeneration) return;
       } catch (error) {
         log("warn", "events/subscribe host scope failed", error);
       }
@@ -134,19 +155,28 @@ export function createRemoteHostConnection(
       try {
         response = await client.request<SessionListResponse>("session/list");
       } catch (error) {
-        log("error", "session/list failed; connection stays with no registered sessions", error);
+        log("error", "session/list failed; connection will retry on the next open", error);
+        disposeOpenState();
         return;
       }
-      await Promise.all(response.sessions.map((session) => registerSession(session.id)));
+      if (!opened || generation !== expectedGeneration) return;
+      await Promise.all(
+        response.sessions.map((session) => registerSession(session.id, expectedGeneration)),
+      );
     },
     async close() {
       if (!opened) return;
-      opened = false;
-      unsubscribe?.();
-      unsubscribe = null;
-      bridge = null;
-      for (const remoteSessionId of registered) router.unregisterBackend(remoteSessionId);
-      registered.clear();
+      disposeOpenState();
+    },
+    async listSessions() {
+      if (!opened) return [];
+      try {
+        const response = await client.request<SessionListResponse>("session/list");
+        return response.sessions ?? [];
+      } catch (error) {
+        log("warn", `listSessions failed for host ${hostKey}`, error);
+        return [];
+      }
     },
   };
 }

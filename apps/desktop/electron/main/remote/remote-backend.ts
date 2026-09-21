@@ -48,6 +48,8 @@ export type RemoteRacpClient = {
 export type RemoteBackendOptions = {
   /** The host's routing key; the outward id of a forked session reuses it. */
   hostKey: string;
+  /** Human-friendly label shown beside remote projects. */
+  hostLabel?: string;
   client: RemoteRacpClient;
   /** Injectable id source for RACP request contexts; defaults to a UUID. */
   newRequestId?: () => string;
@@ -83,7 +85,7 @@ const HANDLED_CHANNELS: ReadonlySet<string> = new Set([
 ]);
 
 export function createRemoteBackend(options: RemoteBackendOptions): RemoteBackend {
-  const { hostKey, client } = options;
+  const { hostKey, hostLabel, client } = options;
   const newRequestId = options.newRequestId ?? (() => globalThis.crypto.randomUUID());
   const context = (idempotencyKey?: string): RacpRequestContext => ({
     requestId: newRequestId(),
@@ -237,7 +239,12 @@ export function createRemoteBackend(options: RemoteBackendOptions): RemoteBacken
             errorCode: ErrorCodes.INTERNAL,
           });
         }
-        return { session: snapshotToSessionDetail(remoteSessionId, attach.snapshot) };
+        return {
+          session: snapshotToSessionDetail(remoteSessionId, attach.snapshot, {
+            hostKey,
+            ...(hostLabel ? { hostLabel } : {}),
+          }),
+        };
       }
       case IPC.invoke.sessionConfigure: {
         const remoteSessionId = remoteIdFor(args);
@@ -252,7 +259,12 @@ export function createRemoteBackend(options: RemoteBackendOptions): RemoteBacken
           ...(config.thinkingLevel ? { thinkingLevel: config.thinkingLevel } : {}),
           ...(config.permissionMode ? { permissionMode: config.permissionMode } : {}),
         });
-        return { session: racpSessionToSummary(remoteSessionId, session, 0) };
+        return {
+          session: racpSessionToSummary(remoteSessionId, session, 0, {
+            hostKey,
+            ...(hostLabel ? { hostLabel } : {}),
+          }),
+        };
       }
       case IPC.invoke.sessionFork: {
         const req = args[0] as { sessionId: string; title?: string; throughMessageId?: string };
@@ -269,8 +281,17 @@ export function createRemoteBackend(options: RemoteBackendOptions): RemoteBacken
           includeSnapshot: true,
         });
         const detail: SessionDetail = attach.snapshot
-          ? snapshotToSessionDetail(forkedRemoteId, attach.snapshot)
-          : { ...racpSessionToSummary(forkedRemoteId, session, 0), messages: [] };
+          ? snapshotToSessionDetail(forkedRemoteId, attach.snapshot, {
+              hostKey,
+              ...(hostLabel ? { hostLabel } : {}),
+            })
+          : {
+              ...racpSessionToSummary(forkedRemoteId, session, 0, {
+                hostKey,
+                ...(hostLabel ? { hostLabel } : {}),
+              }),
+              messages: [],
+            };
         return { session: detail };
       }
       case IPC.invoke.sessionRename: {
