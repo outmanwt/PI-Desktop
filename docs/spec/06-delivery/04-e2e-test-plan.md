@@ -8,6 +8,35 @@
 
 ## 1. Goals
 
+### E2E-IMAGES-desktop-conversation
+
+- **Preconditions:** Isolated desktop profile and workspace, built image feature,
+  local chat and OpenAI Images HTTP fixtures; no live provider credentials.
+- **Steps:** Open Models settings; verify the conversation and image defaults
+  share a compact panel. Submit a two-image request through the composer, then
+  edit the first output through a follow-up message. Collapse tool details.
+  Clear the binding and follow the visible configuration action back to Models.
+- **Expected:** A 12px default-row gap, decoded image previews outside collapsed
+  process details, multipart source upload for editing, preserved originals,
+  and no image HTTP request while unconfigured.
+- **Settings interactions:** The image summary has no Change/Clear buttons and
+  matches the default model's provider/model text styles. Select another
+  provider's image model in Advanced and save; the summary changes while the
+  chat default stays unchanged. Missing/disabled bindings show only Currently
+  unavailable. Covered in `scripts/e2e-image-generation-ui.mjs`.
+- **Conversation selection:** The selected image provider/model is absent from
+  default and Composer candidates. Other providers retain same-ID models. An
+  existing session pinned to the image binding is rejected before inference.
+- **Transport contracts:** Real stdio reverse RPC retains a thrown local image
+  error's stable code in the production ParentHostProxy. Local HTTP tests check
+  single/multiple binary multipart fields and boundaries, DALL-E `b64_json`
+  requests, GPT Image parameter omission, bounded responses, and rejection of
+  more than four references before I/O. These are protocol tests, not official
+  provider account/live compatibility certification.
+- **Status:** Automated in `node scripts/e2e-image-chat.mjs`; optional screenshots
+  use `PI_IMAGE_CHAT_EVIDENCE_DIR`. The images are deterministic raster fixtures,
+  not evidence of real-model quality or provider compatibility.
+
 ### E2E-SCHEDULED-desktop-automation-lifecycle
 
 - **Preconditions:** Isolated desktop profile, built task candidate, local SSE
@@ -83,8 +112,8 @@
 - Document every user-visible and protocol-visible behavior that MVP must verify.
 - Provide a scenario catalog that maps to acceptance criteria (A–H) and milestones (M1–M6).
 - Serve as the traceability backbone: scenario ID ↔ acceptance criterion ↔ spec.
-- Define the required E2E gate for code-bearing changes on the integrated
-  `main` that precedes the pull request.
+- Define the required E2E gate for code-bearing task candidates containing the
+  latest `origin/main`, before the pull request; do not merge into local `main`.
 - Keep validation evidence tied to the commit the gate ran on, plus any later
   commit that changes the landed executable content.
 
@@ -1765,8 +1794,9 @@ identify the platform validation still needed.
 - **Steps**:
   1. Invoke Add project from Settings → Project archive or the sidebar Projects
      heading and inspect the empty dialog.
-  2. Enter a project name and add two folders with the folder picker. Confirm
-     both rows render and the first row is marked Primary.
+  2. Add two folders with the folder picker without typing a name. Confirm the
+     name field seeds with the first folder's name, both rows render, and the
+     first row is marked Primary.
   3. Remove one row, check the count, and add it again.
   4. Inspect the empty and populated states in light and dark themes, including
      a narrow window and reduced-motion settings.
@@ -1780,8 +1810,9 @@ identify the platform validation still needed.
 - **Expected**: The dialog traps focus, closes on Escape or outside click while
   idle, and keeps the name and selected folders visible without horizontal
   overflow. The native picker allows multiple directories in one selection.
-  Removing a folder updates the count and never removes another row. Create is
-  disabled until both a name and one folder are present. On creation one
+  Removing a folder updates the count and never removes another row. Create
+  needs one folder and no typed name; an empty name field falls back to the
+  first folder's name. On creation one
   logical project group receives the entered display name; its primary folder
   becomes the active workspace and every selected folder is retained as a group
   root. The Project archive shows one group row, and its sessions, shared
@@ -7923,6 +7954,8 @@ identify the platform validation still needed.
 
 | Acceptance | Scenarios |
 |---|---|
+| C / F — Hourly task updates | E2E-SCHEDULED-manual-to-hourly |
+| C / F / Quality — Saved project isolation | E2E-SCHEDULED-manual-workspace-binding |
 | C / F / Quality — Desktop automations | E2E-SCHEDULED-desktop-automation-lifecycle |
 | A / C — Unicode stdio framing | E2E-RPC-unicode-separators |
 | C / G / Quality — Plugins navigation | E2E-NAV-plugins-button-goes-back |
@@ -8029,6 +8062,8 @@ identify the platform validation still needed.
 | M6+ (delegate context budget) | E2E-SUBAGENT-context-overflow-compacts-before-failing, E2E-SUBAGENT-context-overflow-reports-actionable-failure, E2E-SUBAGENT-resume-seeds-within-context-budget |
 | C / F / Quality — The context estimate stays safe (calibration) | E2E-CONTEXT-estimate-calibration-stays-safe |
 | C — Conversation & stream (unique tool-call ids) | E2E-RUNTIME-unique-tool-call-ids-per-request |
+| F — Persistence (stored model binding array) | E2E-PROVIDER-stored-binding-array-reads-entry-by-entry |
+| Quality (stored model binding array) | E2E-PROVIDER-stored-binding-array-reads-entry-by-entry |
 | Quality (unique tool-call ids) | E2E-RUNTIME-unique-tool-call-ids-per-request |
 | G — Plugin host lifecycle (crash report) | E2E-PLUGIN-crash-report-names-the-exit-code |
 | Quality (crash report) | E2E-PLUGIN-crash-report-names-the-exit-code |
@@ -13056,7 +13091,8 @@ plugin-form fixtures in an isolated temporary directory at runtime.
   a clone destination row and keeps one project name field. Source options and
   fields are filled tiles without strokes; keyboard focus uses the shared
   accent-tinted ring. Create stays
-  disabled until the URL parses and a folder is chosen. Confirming runs
+  disabled until the URL parses and a folder is chosen; a name left empty falls
+  back to the parsed repository name. Confirming runs
   `git clone` into the chosen folder with the renderer still owning project
   creation: the checkout becomes the primary root and the entered name names the
   group. Private, loopback, link-local, credential-bearing, and malformed
@@ -14187,6 +14223,31 @@ the latest destination. These assertions measure work counts, not device FPS.
   success fixture uses a child-only extra CA; it does not reproduce a specific
   antivirus installation or claim native macOS/Linux verification.
 
+
+### E2E-PROVIDER-stored-binding-array-reads-entry-by-entry
+
+- **Preconditions:** A throwaway data directory and the host-core binary; a
+  provider created through `providers.create` with at least three complete
+  bindings; no real provider or credentials.
+- **Steps:** Call `providers.list` and confirm every binding returns. Edit the
+  stored `config_json` to delete one binding's `maxTokens` and list again.
+  Restore the field and list again. Then set one binding's `contextWindow` to a
+  string and list once more. Attempt `providers.update` with the readable
+  subset and an unrelated provider change.
+- **Expected:** All three bindings return in every case except the malformed
+  entry, where the readable bindings return in their stored order. The binding
+  that lost `maxTokens` reads with the generic default output cap, and restoring
+  the field restores the value. The host log names the provider id, the entry's
+  index and the reason for the entry that could not be decoded. The explicit
+  model-array update is rejected with `MODEL_BINDINGS_DEGRADED`, while the
+  stored `config_json` remains unchanged.
+- **Specs linked:** `03-runtime/12-provider-config-schema.md` §2,
+  `08-meta/decisions-log.md` D610
+- **Acceptance:** F (persistence), Quality
+- **Status:** Unit-covered (`providers::catalog::tests`,
+  `providers::tests::a_stored_array_survives_an_entry_that_lost_a_field`); the
+  host RPC path is exercised by `scripts/e2e-smoke.mjs` for provider create and
+  list, but no suite drives a hand-edited `config_json`.
 ### E2E-CONTEXT-estimate-calibration-stays-safe
 
 - **Preconditions:** Deterministic provider fixture whose reported usage can be
@@ -14250,6 +14311,28 @@ the latest destination. These assertions measure work counts, not device FPS.
 - **Status**: Covered by the existing HTTP client integration fixture and a
   focused component-render validation; no live IDA process required.
 
+### E2E-IMAGE-generation-and-editing
+
+- **Preconditions:** Built task candidate containing latest origin/main; isolated
+  host data directory, local image HTTP fixture, no production credentials.
+- **Steps:** Choose a model in Advanced, cancel and verify no change; save and
+  replace it through another provider's Advanced settings. Clear the binding via
+  the test settings API to verify recovery. Generate same-prompt variants and distinct images,
+  edit a generated image, inspect partial failures, then restart the host/session.
+  Attempt the tool in a durable Plan session and verify no HTTP request occurs.
+- **Expected:** One image binding persists without changing the chat default;
+  generated files, edit sources and transcript references survive restart.
+  Images render in chat; unconfigured errors navigate to Models settings.
+- **Specs:** 03-runtime/21-image-generation; 03-runtime/13-model-catalog-and-selection.
+- **Acceptance:** Configured image generation/editing, safe cancellation and persistence.
+- **Milestone:** Post-MVP.
+- **Status:** Automated by `scripts/e2e-image-generation.mjs` and
+  `scripts/e2e-image-generation-ui.mjs`; backend test uses real Rust/stdio/HTTP/files,
+  UI test uses real Chromium and production components with API-boundary fixtures.
+
+| Scenario | Acceptance | Specification | Automation |
+| --- | --- | --- | --- |
+| E2E-IMAGE-generation-and-editing | Image capability and recovery | 03-runtime/21-image-generation | Host and UI suites above |
 
 #### E2E-CHAT-parenthesized-url: Complete URLs in user messages
 
@@ -14257,3 +14340,35 @@ the latest destination. These assertions measure work counts, not device FPS.
 - **Expected**: The complete URL, including `(software)`, opens the React software article. The outer prose closing parenthesis and sentence-ending punctuation after the URL parenthesis are not part of the link. Adjacent references remain independently clickable. Nested parentheses, query/fragment parentheses and percent-encoded parentheses remain intact.
 - **Coverage**: `chat-links.test.mjs`; native desktop click-through with the normal browser destination.
 - **Specs linked**: `04-ux/08-component-spec.md` §8.3.
+
+### E2E-SCHEDULED-manual-to-hourly
+
+- **Preconditions:** Built host candidate, isolated data directory, no provider.
+- **Steps:** Through `tools.execute`, create a paused Manual task, update only
+  its id and cadence to Hourly, rename it, restart, and list tasks again.
+- **Expected:** Update succeeds without calendar fields; the next occurrence is
+  one hour away. Prompt, paused state and saved configuration survive. Rename
+  does not reset the interval. RPC tests also cover required Daily/Weekly times
+  and retention of an existing custom schedule.
+- **Specs:** 04-ux/01-ui-ia §3.4.
+- **Acceptance:** C / F — task configuration and persistence.
+- **Milestone:** Maintenance.
+- **Status:** `node scripts/e2e-scheduled-hourly-update.mjs` exercises the real
+  Rust host, permission path, stdio and SQLite; no model inference or desktop UI.
+
+### E2E-SCHEDULED-manual-workspace-binding
+
+- **Preconditions:** Built request candidate; isolated host data and two project
+  directories. No provider credentials or paid API.
+- **Steps:** Create Manual and Hourly tasks in project A and without a project;
+  restart the host, switch to B, Run now, rename through the editor payload,
+  and Run now again.
+- **Expected:** Each result session and edited task retain the original binding,
+  including no-project tasks. Legacy cadence-only tasks keep their previous
+  fallback until explicitly configured (covered by host RPC tests).
+- **Specs:** 04-ux/01-ui-ia §3.4.
+- **Acceptance:** Saved workspace binding across run, edit and restart.
+- **Milestone:** Maintenance.
+- **Status:** Automated by `node --experimental-strip-types
+  scripts/e2e-scheduled-workspace.mjs`, using production Electron dispatch and
+  real Rust/stdio/SQLite. Only external inference is replaced with an observer.
