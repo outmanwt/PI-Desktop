@@ -532,6 +532,12 @@ CREATE INDEX idx_session_import_origins_plugin
   message. Assistant Edit uses that child and records the original/edited
   response tails in the child's existing `message_revisions` store; the source
   transcript and source revisions are never rewritten.
+- Forks copy existing referenced files from `scratch/<sourceId>/pasted/` to
+  `scratch/<childId>/pasted/` and rewrite message/checkpoint paths before
+  indexing. Source deletion cannot remove the child copies. Unreferenced files,
+  later-message inputs outside a bounded fork, and other scratch outputs are
+  excluded. Missing expired inputs stay missing; no cross-session read grant
+  is added. Handled fork failures remove copied inputs and child transcripts.
 
 ### 4.6 turns — one row per agent run
 
@@ -1558,3 +1564,13 @@ and bounded asynchronous scanning remain deferred performance work.
 Host-core owns updates through `providers.reorder`; missing metadata preserves
 creation order, new IDs follow saved IDs, and deleted IDs are ignored. This
 preference does not rewrite provider configuration or require a schema migration.
+
+### Scheduled calendar provenance
+
+The optional `config_json.calendarConfigured` boolean records explicit calendar
+intent separately from the schedule object required by Hourly intervals.
+Legacy Daily/Weekly rows with a saved schedule infer calendar intent; legacy
+Hourly rows retain their fields but require explicit calendar confirmation
+when converted. Known intent survives cadence changes and database reopen.
+This additive JSON key needs no table or schema-version migration. Older
+versions ignore the key and cannot enforce the new conversion guard.
