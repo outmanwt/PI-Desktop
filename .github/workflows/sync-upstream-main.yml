@@ -1,10 +1,7 @@
-# Open a pull request that syncs this fork with upstream.
-#
-# Directly pushing a merge that changes `.github/workflows/**` is rejected by
-# GitHub's GITHUB_TOKEN unless the token has the special `workflows` scope.
-# Opening a PR avoids that restriction and gives the fork owner one explicit
-# review/merge step. The job is fork-only; the canonical upstream repository is
-# never modified.
+# Keep this fork's `main` current with the upstream repository.
+# GitHub's official merge-upstream endpoint performs the server-side merge,
+# including workflow-file changes, without requiring a cross-fork PR or a
+# workflow token with the special `workflows` permission.
 
 name: Sync upstream main
 
@@ -14,63 +11,29 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: write
+  contents: write
 
 concurrency:
   group: sync-upstream-main
   cancel-in-progress: false
 
 jobs:
-  open-sync-pr:
-    name: Open upstream sync PR
+  sync:
+    name: Merge upstream main into fork main
     if: github.repository != 'vastsa/PI-Desktop'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check for an existing sync PR
-        id: existing
+      - name: Merge upstream main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          encoded_head="vastsa:main"
-          existing="$(curl --fail-with-body --silent --show-error \
-            --get "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'Accept: application/vnd.github+json' \
-            --data-urlencode 'state=open' \
-            --data-urlencode 'base=main' \
-            --data-urlencode "head=${encoded_head}")"
-          if [[ "$(jq 'length' <<<"$existing")" -gt 0 ]]; then
-            echo 'exists=true' >> "$GITHUB_OUTPUT"
-            echo 'An upstream sync PR is already open.'
-          else
-            echo 'exists=false' >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Create upstream sync PR
-        if: steps.existing.outputs.exists != 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          compare="$(curl --fail-with-body --silent --show-error \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/compare/main...vastsa:main" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'Accept: application/vnd.github+json')"
-          commit_count="$(jq '.commits | length' <<<"$compare")"
-          if [[ "$commit_count" -eq 0 ]]; then
-            echo 'Fork main already contains upstream main; no PR needed.'
-            exit 0
-          fi
-          payload="$(jq -n \
-            --arg title 'chore(sync): update fork main from upstream' \
-            --arg body 'Automated sync request from `vastsa/PI-Desktop:main`. Merge this PR to bring upstream changes into the fork without granting the workflow permission to push `.github/workflows/**` directly.' \
-            '{title: $title, head: "vastsa:main", base: "main", body: $body}')"
-          curl --fail-with-body --silent --show-error \
-            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls" \
+          response="$(curl --fail-with-body --silent --show-error \
+            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/merge-upstream" \
             -H "Authorization: Bearer ${GH_TOKEN}" \
             -H 'Accept: application/vnd.github+json' \
             -H 'Content-Type: application/json' \
-            --data "$payload"
+            --data '{"branch":"main"}')"
+          echo "$response"
+          echo "Upstream merge request completed."
