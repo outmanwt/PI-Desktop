@@ -263,7 +263,7 @@ test("sidebar row menus omit project reassignment and switching actions", () => 
   assert.doesNotMatch(sidebarSource, /t\("project\.switch"/);
   assert.match(
     sidebarSource,
-    /if \(!entry\.active && !\(await selectProject\(entry\.path\)\)\) return;/,
+    /if \(!entry\.remote && !entry\.active && !\(await selectProject\(entry\.path\)\)\) return;/,
   );
 });
 
