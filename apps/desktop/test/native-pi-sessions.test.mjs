@@ -213,6 +213,7 @@ function forkHarness({ host, sidecar }) {
     "../importers": { convertSession() {}, scanAllSources() {}, scanModelConfigs() {} },
     "../services/session-collaboration": { readSessionCollaboration() {} },
     "../services/session-search": { searchSessionsAcrossSources },
+    "../bootstrap/remote-hosts": { getActiveRemoteHostsBoot: () => null },
   });
   registerSessionIpc({
     registrar: { handle: (channel, handler) => handlers.set(channel, handler) },
