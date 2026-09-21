@@ -3104,6 +3104,11 @@ identify the platform validation still needed.
   again with the native folder picker. 3) Confirm the Primary row cannot be
   removed. 4) Save and inspect the sidebar row, Project archive roots, and
   active workspace. 5) Restart the app and inspect the group again.
+- **Background-update regression**: Open Edit project from Settings, change the
+  name and remove the additional folder, then complete a background task before
+  saving. Both draft edits must remain visible and save together. The isolated
+  rendered test is `node scripts/e2e-project-edit.mjs`; it uses real page/store
+  wiring with a controlled host IPC boundary and does not prove disk persistence.
 - **Expected**: Both project menus offer Edit project. The editor keeps focus
   contained, trims the name, limits it to 80 Unicode characters, preserves the
   Primary folder as the first row, and updates the root count without removing
@@ -4749,7 +4754,11 @@ identify the platform validation still needed.
   `Alt + Shift + W` and confirm the window hides to the tray with no
   close-behaviour prompt and with the app still running; from another
   application, press it again and confirm the window returns and focuses.
-  13) Seed one profile with a stored customized `closeWindow` binding and one
+  13) Disable New task, assign its default chord to Search, then reset New task
+  individually. Confirm the conflict error preserves both mappings and Search
+  still opens with that chord. Repeat with New task customized instead of disabled;
+  free the default by resetting Search, then retry New task reset.
+  14) Seed one profile with a stored customized `closeWindow` binding and one
   with a customized `summonWindow` binding; confirm each profile keeps that
   binding on the single toggle row after restart and that `Cmd/Ctrl + Shift +
   W` registers nothing.
@@ -4761,7 +4770,8 @@ identify the platform validation still needed.
   Unbound displays as a localized explicit state, participates in no conflicts,
   dispatches no old or default chord, persists across restart, removes the
   macOS accelerator, and disables the Windows launcher fallback layers;
-  individual and global reset restore the shared defaults; Keyboard shortcuts is
+  individual reset rejects an occupied default without changing either action;
+  conflict-free individual and global reset restore the shared defaults; Keyboard shortcuts is
   its own Settings destination. Modifier-only and IME keydowns dispatch nothing,
   and a held history chord traverses only once per physical press. The
   window-visibility key is one toggle on `Alt + Shift + W` — a visible, focused
