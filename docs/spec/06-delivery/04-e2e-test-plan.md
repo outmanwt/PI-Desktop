@@ -33,6 +33,31 @@
 - **Milestone:** Post-MVP desktop automations.
 - **Status:** Automated in `node scripts/e2e-scheduled.mjs`; run against the
   request candidate per AGENTS.md, with tested head and base recorded.
+### E2E-IMPORT-workbuddy-session-skill-memory
+
+- **Preconditions:** A disposable desktop profile, a temporary `WORKBUDDY_HOME`
+  containing one WorkBuddy JSONL session, one skill directory, and two Markdown
+  memory files; a trusted sample project; no real provider credentials.
+- **Steps:** Open Settings → Import and scan Sessions. Select the WorkBuddy
+  conversation and import it. Scan Skills, select the WorkBuddy skill, import it
+  using copy mode, then scan Memory and import both entries into the sample
+  project. Repeat the memory import with one duplicate entry. Include a malformed
+  JSONL line and a persisted tool-output reference outside the WorkBuddy root.
+- **Expected:** The WorkBuddy session appears with its title, cwd, user/assistant
+  messages, tool result, and stable imported id; malformed lines do not abort the
+  scan. The skill is discovered from `$WORKBUDDY_HOME/skills` and imported through
+  the existing host-owned skill path. Existing project memory remains intact,
+  duplicate normalized content is skipped, and the out-of-root tool-output path
+  is never read. The UI reports imported/skipped/failed counts without exposing
+  raw filesystem diagnostics.
+- **Specs linked:** `03-runtime/01-ipc-protocol.md` import channels and
+  `03-runtime/04-data-storage.md` host-owned project memory.
+- **Acceptance criterion:** Importing external local agent data is explicit,
+  bounded, idempotent, and isolated from renderer-owned persistence.
+- **Milestone:** Post-MVP compatibility import.
+- **Status:** Documented; lower-level scanner/IPC contracts are automated, full
+  desktop journey remains environment-dependent.
+
 
 
 

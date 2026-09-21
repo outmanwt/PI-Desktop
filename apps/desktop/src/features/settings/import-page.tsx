@@ -13,6 +13,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type {
+  ExternalMemoryCandidate,
+  ExternalMemoryImportPayload,
+  ExternalMemoryScanResult,
   ExternalMcpCandidate,
   ExternalMcpImportItem,
   ExternalMcpScanResult,
@@ -36,7 +39,7 @@ import { Badge, Button, HelpIcon, cx } from "../../components/ui";
 import { IconChevronLeft, IconDownload } from "../../components/icons";
 import { SettingsMenuSelect } from "../../components/settings/SettingsMenuSelect";
 
-type ImportKind = "sessions" | "models" | "skills" | "mcp";
+type ImportKind = "sessions" | "models" | "skills" | "mcp" | "memory";
 
 /**
  * Tab labels reuse the sessions / models / skills / MCP labels the sidebar and
@@ -48,6 +51,7 @@ const IMPORT_KINDS: readonly { id: ImportKind; labelKey: string }[] = [
   { id: "models", labelKey: "settings.nav.models" },
   { id: "skills", labelKey: "settings.nav.skills" },
   { id: "mcp", labelKey: "settings.nav.mcp" },
+  { id: "memory", labelKey: "settings.importMemory" },
 ];
 
 export function ImportSection() {
@@ -98,14 +102,15 @@ export function ImportSection() {
 }
 
 /**
- * The four workbenches stay mounted: `hidden` only takes one out of view, so a
+ * The five workbenches stay mounted: `hidden` only takes one out of view, so a
  * scan result and its selection survive a tab switch.
  */
 function ImportKindPanel({ kind }: { kind: ImportKind }) {
   if (kind === "sessions") return <SessionImportPanel />;
   if (kind === "models") return <ModelConfigImportPanel />;
   if (kind === "skills") return <SkillsScanImportPanel />;
-  return <McpScanImportPanel />;
+  if (kind === "mcp") return <McpScanImportPanel />;
+  return <MemoryScanImportPanel />;
 }
 
 /* ---------------------------------------------------------------------------
@@ -816,6 +821,7 @@ const SKILL_SOURCE_KEY: Record<ExternalSkillSourceKind, string> = {
   "claude-project": "settings.importAgentScanSourceClaudeProject",
   "pi-user": "settings.importAgentScanSourcePiUser",
   "pi-project": "settings.importAgentScanSourcePiProject",
+  "workbuddy-user": "settings.importAgentScanSourceWorkBuddy",
 };
 
 const MCP_SOURCE_KEY: Record<ExternalMcpSourceKind, string> = {
@@ -998,6 +1004,111 @@ export function SkillsScanImportPanel() {
     </div>
   );
 }
+export function MemoryScanImportPanel() {
+  const { t } = useTranslation();
+  const showToast = useAppStore((s) => s.showToast);
+  const workspacePath = useAppStore((s) => s.workspace?.path ?? null);
+  const [result, setResult] = useState<ExternalMemoryScanResult | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [scanning, setScanning] = useState(false);
+  const [importing, setImporting] = useState(false);
+
+  const keyOf = (candidate: ExternalMemoryCandidate) => `${candidate.source}:${candidate.sourcePath}`;
+
+  const scan = async () => {
+    setScanning(true);
+    try {
+      const next = await api.scanExternalMemory();
+      setResult(next);
+      setSelected(new Set());
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error), { variant: "error" });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const runImport = async () => {
+    if (!result || !workspacePath) return;
+    const items: ExternalMemoryImportPayload["items"] = result.candidates
+      .filter((candidate) => selected.has(keyOf(candidate)))
+      .map(({ source, sourcePath, id, title, content }) => ({ source, sourcePath, id, title, content }));
+    if (items.length === 0) return;
+    setImporting(true);
+    try {
+      const imported = await api.runExternalMemoryImport({ projectPath: workspacePath, items });
+      showToast(
+        t("settings.importMemoryResult", {
+          imported: imported.imported.length,
+          skipped: imported.skipped.length,
+          failed: imported.failed.length,
+        }),
+        { variant: imported.failed.length > 0 ? "error" : "success" },
+      );
+      await scan();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : String(error), { variant: "error" });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const allKeys = result?.candidates.map(keyOf) ?? [];
+  const allSelected = allKeys.length > 0 && allKeys.every((key) => selected.has(key));
+
+  return (
+    <div className="import-workbench">
+      {result === null ? (
+        <ImportIdle
+          description={t("settings.importMemoryDesc")}
+          note={workspacePath ? t("settings.importMemoryTarget", { path: workspacePath }) : t("settings.selectProjectFirst")}
+          onScan={() => void scan()}
+          scanning={scanning}
+        />
+      ) : (
+        <>
+          <ImportToolbar
+            found={t("settings.importMemoryFound", { count: result.candidates.length })}
+            selectedCount={selected.size}
+            allSelected={allSelected}
+            selectAllLabel={t("settings.importSelectAll")}
+            onToggleAll={(on) => setSelected(on ? new Set(allKeys) : new Set())}
+            scanning={scanning}
+            importing={importing}
+            onScan={() => void scan()}
+            onImport={() => void runImport()}
+          />
+          <ImportResults
+            message={
+              result.candidates.length === 0
+                ? t("settings.importAgentScanNone")
+                : !workspacePath
+                  ? t("settings.selectProjectFirst")
+                  : undefined
+            }
+          >
+            <div className="import-groups">
+              {result.candidates.map((candidate) => {
+                const key = keyOf(candidate);
+                return (
+                  <ImportRow
+                    key={key}
+                    title={candidate.title}
+                    meta={`${candidate.sourcePath} · ${formatImportDate(candidate.updatedAt)}`}
+                    checked={selected.has(key)}
+                    onChange={(on) => setSelected((previous) => toggleKey(previous, key, on))}
+                    badge={<Badge tone="neutral">{t("settings.importMemorySourceWorkBuddy")}</Badge>}
+                  />
+                );
+              })}
+            </div>
+          </ImportResults>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 export function McpScanImportPanel() {
   const { t } = useTranslation();
