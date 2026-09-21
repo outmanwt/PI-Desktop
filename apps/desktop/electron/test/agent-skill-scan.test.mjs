@@ -44,6 +44,36 @@ test("file-shaped skills under ~/.claude/skills produce candidates", async () =>
   }
 });
 
+test("WorkBuddy global skills use ~/.workbuddy/skills and support an explicit home override", async () => {
+  const { root, home } = await makeHome();
+  try {
+    const dir = join(home, ".workbuddy", "skills", "workbuddy-skill");
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "SKILL.md"), skillFile("WorkBuddy Skill", "Imported from WorkBuddy"));
+    const result = await scanExternalSkills({ homeDir: home, env: {} });
+    const candidate = result.candidates.find((entry) => entry.source === "workbuddy-user");
+    assert.ok(candidate);
+    assert.equal(candidate.shape, "dir");
+    assert.equal(candidate.rootDir, dir);
+    assert.equal(candidate.id, "workbuddy-skill");
+    assert.equal(result.sources.find((entry) => entry.kind === "workbuddy-user")?.count, 1);
+
+    const override = join(root, "custom-workbuddy");
+    const overrideDir = join(override, "skills");
+    await mkdir(overrideDir, { recursive: true });
+    await writeFile(join(overrideDir, "custom.md"), skillFile("Custom WorkBuddy", "Uses an override"));
+    const overridden = await scanExternalSkills({
+      homeDir: home,
+      env: { WORKBUDDY_HOME: override },
+    });
+    const source = overridden.sources.find((entry) => entry.kind === "workbuddy-user");
+    assert.equal(source?.path, overrideDir);
+    assert.equal(overridden.candidates.find((entry) => entry.source === "workbuddy-user")?.id, "custom-workbuddy");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("directory-shaped skills read SKILL.md and record rootDir", async () => {
   const { root, home } = await makeHome();
   try {

@@ -128,7 +128,7 @@ import {
   validateSpeechSettings,
 } from "@pi-desktop/shared";
 
-export type ImportSource = "claude-code" | "opencode" | "codex" | "pi";
+export type ImportSource = "claude-code" | "opencode" | "codex" | "pi" | "workbuddy";
 // One definition, owned by the shared package (the host and sidecar use the
 // same shape); re-exported so existing renderer imports keep working.
 import type {
@@ -164,7 +164,8 @@ export type ExternalSkillSourceKind =
   | "claude-user"
   | "claude-project"
   | "pi-user"
-  | "pi-project";
+  | "pi-project"
+  | "workbuddy-user";
 
 export interface ExternalSkillCandidate {
   source: ExternalSkillSourceKind;
@@ -207,6 +208,42 @@ export interface ExternalSkillImportPayload {
   mode?: "copy" | "link";
   items: ExternalSkillImportItem[];
 }
+
+export type ExternalMemorySourceKind = "workbuddy-user";
+
+export interface ExternalMemoryCandidate {
+  source: ExternalMemorySourceKind;
+  sourcePath: string;
+  id: string;
+  title: string;
+  content: string;
+  bytes: number;
+  updatedAt: string;
+  warnings: string[];
+}
+
+export interface ExternalMemoryScanResult {
+  candidates: ExternalMemoryCandidate[];
+  sources: Array<{
+    kind: ExternalMemorySourceKind | "error";
+    path: string;
+    exists: boolean;
+    error?: string;
+    count: number;
+  }>;
+}
+
+export interface ExternalMemoryImportPayload {
+  projectPath: string;
+  items: Array<Pick<ExternalMemoryCandidate, "source" | "sourcePath" | "id" | "title" | "content">>;
+}
+
+export interface ExternalMemoryImportRunResult {
+  imported: ExternalMemoryImportPayload["items"];
+  skipped: Array<{ item: ExternalMemoryImportPayload["items"][number]; reason: "duplicate" }>;
+  failed: Array<{ item: ExternalMemoryImportPayload["items"][number]; error: string }>;
+}
+
 
 export interface ExternalSkillImportRunResult {
   imported: Array<{ item: ExternalSkillImportItem; skill: UserSkillRecord }>;
@@ -987,6 +1024,10 @@ export const api = {
       IPC.invoke.skillMarketFetch,
       { entry },
     ),
+  scanExternalMemory: () =>
+    invoke<ExternalMemoryScanResult>(IPC.invoke.memoryImportScan),
+  runExternalMemoryImport: (payload: ExternalMemoryImportPayload) =>
+    invoke<ExternalMemoryImportRunResult>(IPC.invoke.memoryImportRun, payload),
 
   // --- Skills the user owns -------------------------------------------------
   listUserSkills: (query?: AgentCapabilityQuery) =>

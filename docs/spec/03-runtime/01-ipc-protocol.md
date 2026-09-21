@@ -1046,6 +1046,7 @@ through `providers.create` on `modelConfig/importRun`. Re-importing a
 matching endpoint, API style, and credential is skipped; a different
 credential at the same endpoint remains independent. OAuth tokens from those
 tools are never copied. No host protocol or storage schema version bump.
+`memory/importScan` and `memory/importRun` are Electron-only WorkBuddy memory import channels. The scan reads `~/.workbuddy/MEMORY.md` and `~/.workbuddy/memory/*.md` (or `$WORKBUDDY_HOME` equivalents), returning bounded Markdown candidates with title, byte size, and mtime. The run accepts a selected project path and candidate payloads, calls host-owned `project.memory/get` and `project.memory/set`, preserves existing entries, and skips duplicate normalized content. WorkBuddy session import additionally scans `$WORKBUDDY_HOME/projects/**/*.jsonl` (default `~/.workbuddy/projects`), converts user/assistant messages and paired function-call results into the existing session transcript shape, and never imports malformed or oversized files. WorkBuddy Skills reuse the external skill scan/import channels from `$WORKBUDDY_HOME/skills` (default `~/.workbuddy/skills`). These imports are explicit only; no source is copied on startup, and persisted tool-output paths are read only when contained by the configured WorkBuddy projects root.
 
 A regenerate or edit-resend truncates the durable transcript before appending
 its new user turn. `agent/prompt` accepts `truncateFromMessageId` — the identity

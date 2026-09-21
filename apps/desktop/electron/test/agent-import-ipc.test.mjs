@@ -14,7 +14,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 register(pathToFileURL(join(here, "..", "..", "test", "helpers", "ts-import-hooks.mjs")));
-const { runSkillImport, runMcpImport } = await import(
+const { runSkillImport, runMcpImport, runMemoryImport } = await import(
   "../main/ipc/agent-import-ipc.ts"
 );
 
@@ -169,4 +169,35 @@ test("runMcpImport reports an `already exists` upsert as skipped, not failed", a
   assert.equal(result.skipped[0].reason, "exists");
   assert.equal(result.imported.length, 1);
   assert.equal(result.failed.length, 0);
+});
+test("runMemoryImport preserves existing entries and skips duplicate content", async () => {
+  const host = stubHost({
+    "project.memory.get": [{ memory: { entries: [{ id: "old", title: "Old", content: "Keep this." }] } }],
+    "project.memory.set": [{ memory: { entries: [] } }],
+  });
+  const items = [
+    { source: "workbuddy-user", sourcePath: "/MEMORY.md", id: "global", title: "Global", content: "Keep this." },
+    { source: "workbuddy-user", sourcePath: "/memory/new.md", id: "new", title: "New", content: "Add this." },
+  ];
+  const result = await runMemoryImport(host.call, { projectPath: "/project", items });
+  assert.equal(result.skipped.length, 1);
+  assert.equal(result.imported.length, 1);
+  assert.equal(host.calls.length, 2);
+  assert.equal(host.calls[1].method, "project.memory.set");
+  assert.deepEqual(host.calls[1].params.entries, [
+    { id: "old", title: "Old", content: "Keep this." },
+    { id: "new", title: "New", content: "Add this." },
+  ]);
+});
+
+test("runMemoryImport reports host save failures without claiming imports", async () => {
+  const host = stubHost({
+    "project.memory.get": [{ memory: { entries: [] } }],
+    "project.memory.set": [{ throw: new Error("memory limit") }],
+  });
+  const item = { source: "workbuddy-user", sourcePath: "/MEMORY.md", id: "one", title: "One", content: "One." };
+  const result = await runMemoryImport(host.call, { projectPath: "/project", items: [item] });
+  assert.equal(result.imported.length, 0);
+  assert.equal(result.failed.length, 1);
+  assert.match(result.failed[0].error, /memory limit/);
 });

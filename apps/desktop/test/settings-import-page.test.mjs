@@ -8,18 +8,18 @@
  * out, rows losing their tile/typography tokens, or a kind losing the scan that
  * belongs to it.
  */
-import { readSettingsSourceSync } from "./helpers/source-contracts.mjs";
-import { loadStylesSync } from "./helpers/styles.mjs";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
+import { loadStylesSync } from "./helpers/styles.mjs";
 import test from "node:test";
 
-const settings = readSettingsSourceSync();
+const settings = readFileSync(
+  fileURLToPath(new URL("../src/features/settings/import-page.tsx", import.meta.url)),
+  "utf8",
+);
 const styles = loadStylesSync();
-
-const start = settings.indexOf(" * Settings ▸ Import.");
-assert.ok(start > 0, "import page module missing from the settings domain");
-const end = settings.indexOf("\n/* features/settings/", start);
-const page = settings.slice(start, end === -1 ? undefined : end);
+const page = settings;
 
 function cssRule(selector) {
   const from = styles.indexOf(`\n${selector} {`);
@@ -34,8 +34,8 @@ test("import is one workbench per kind instead of four stacked scan cards", () =
   assert.match(page, /aria-labelledby={`import-tab-\$\{entry\.id\}`}/);
 
   // One toolbar and one idle state per kind — not per section or per step.
-  assert.equal((page.match(/<ImportToolbar/g) ?? []).length, 4);
-  assert.equal((page.match(/<ImportIdle/g) ?? []).length, 4);
+  assert.equal((page.match(/<ImportToolbar/g) ?? []).length, 5);
+  assert.equal((page.match(/<ImportIdle/g) ?? []).length, 5);
 
   // The retired anatomy: a lone Scan card per kind, a bare empty div, a tinted
   // group strip, and a second copy of the settings row scaffold.
@@ -51,9 +51,13 @@ test("every kind keeps its own scan and its state across a tab switch", () => {
     "scanImportModelConfigs",
     "scanExternalSkills",
     "scanExternalMcp",
+    "scanExternalMemory",
+    "runExternalMemoryImport",
   ]) {
     assert.match(page, new RegExp(`api\\.${call}\\(`), `${call} missing`);
   }
+  assert.match(page, /settings\.importMemory/);
+  assert.match(page, /importAgentScanSourceWorkBuddy/);
   // No kind may start another kind's scan.
   assert.match(page, /api\.scanImportSessions\(\)/);
   assert.match(page, /settings\.importCodexCapped/);
@@ -108,6 +112,7 @@ test("the toolbar is one dense row: counts left, options and actions right", () 
 test("every kind's group label line discloses its own rows", () => {
   // One shared hook and four kinds: a group header may not become a label with
   // no disclosure, and no kind may keep a private copy of the state.
+  // Five kinds share the same disclosure contract; Memory has no group hook.
   assert.equal((page.match(/useGroupDisclosure\(\)/g) ?? []).length, 5);
   assert.equal(
     (page.match(/onToggle=\{\(\) => disclosure\.toggle\(/g) ?? []).length,
