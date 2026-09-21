@@ -24,10 +24,13 @@ import type {
   RemoteHostSshMetadata,
   RemoteHostSummary,
   RemoteHostTransport,
+  SessionSummary,
 } from "@pi-desktop/shared";
 import { assertSshArgument } from "../remote/ssh-transport.js";
 import { wsClientTransport } from "@pi-desktop/racp";
 import type { BackendRouter } from "../remote/backend-router.js";
+import { makeRemoteSessionId } from "../remote/backend-router.js";
+import { racpSessionToSummary } from "../remote/remote-transcript.js";
 import { createRacpRemoteHostClient, exchangePairingToken, type RacpRemoteHostClient } from "../remote/racp-remote-host-client.js";
 import {
   createSshBootstrap,
@@ -85,6 +88,8 @@ export interface RemoteHostsBoot {
   removeHost(hostKey: string): Promise<void>;
   /** The underlying registry, exposed for pairing flows that write directly. */
   readonly registry: RemoteHostRegistry;
+  /** Query all online paired hosts for their durable sessions, tagged with host info. */
+  listSessions(): Promise<SessionSummary[]>;
 }
 
 /**
@@ -262,6 +267,7 @@ export function createRemoteHostsBoot(
       await adapter.connect();
       const connection = createRemoteHostConnection({
         hostKey: record.hostKey,
+        hostLabel: record.label,
         client: adapter.client,
         router: options.router,
         emit: options.emit,
@@ -417,6 +423,25 @@ export function createRemoteHostsBoot(
       // A paired host that never came online still owns a tunnel slot.
       await tunnels.close(hostKey);
       await registry.remove(hostKey);
+    },
+    async listSessions() {
+      const records = await registry.list().catch(() => []);
+      const recordMap = new Map(records.map((r) => [r.hostKey, r]));
+      const all: SessionSummary[] = [];
+      for (const host of opened) {
+        const rec = recordMap.get(host.hostKey);
+        const sessions = await host.connection.listSessions();
+        for (const session of sessions) {
+          const remoteSessionId = makeRemoteSessionId(host.hostKey, session.id);
+          all.push(
+            racpSessionToSummary(remoteSessionId, session, 0, {
+              hostKey: host.hostKey,
+              hostLabel: rec?.label ?? host.hostKey,
+            }),
+          );
+        }
+      }
+      return all;
     },
   };
 }

@@ -28,6 +28,7 @@ import type { PersistenceOutbox } from "../persistence-outbox";
 import type { PluginRuntime } from "../plugin-runtime";
 import { readSessionCollaboration } from "../services/session-collaboration";
 import { searchSessionsAcrossSources } from "../services/session-search";
+import { getActiveRemoteHostsBoot, type RemoteHostsBoot } from "../bootstrap/remote-hosts";
 import type { IpcRegistrar } from "./types";
 
 type RuntimeSession = {
@@ -105,6 +106,7 @@ export type SessionIpcDependencies = {
   enrichSession: (session: any, providers: any, defaults: any) => any;
   acquireSessionOperation: (sessionId: string) => Promise<() => void>;
   stripWinLongPrefix: (path: string) => string;
+  getRemoteHostsBoot?: () => RemoteHostsBoot | null;
 };
 
 export function registerSessionIpc({
@@ -121,6 +123,7 @@ export function registerSessionIpc({
   enrichSession,
   acquireSessionOperation,
   stripWinLongPrefix,
+  getRemoteHostsBoot = getActiveRemoteHostsBoot,
 }: SessionIpcDependencies): void {
   let host: HostProcess | null = null;
   let sidecar: AgentSidecar | null = null;
@@ -142,11 +145,16 @@ export function registerSessionIpc({
   });
   handle(IPC.invoke.sessionList, async () => {
     if (!host) throw new Error("host unavailable");
-    const [result, native, { providers, defaults }] = await Promise.all([
+    const remoteBoot = getRemoteHostsBoot?.();
+    const remotePromise = remoteBoot
+      ? remoteBoot.listSessions().catch(() => [])
+      : Promise.resolve([]);
+    const [result, native, remoteSessions, { providers, defaults }] = await Promise.all([
       host.call<{ sessions: RuntimeSession[] }>("session.list"),
       sidecar
         ? sidecar.call<{ sessions: RuntimeSession[] }>("native.session.list").catch(() => ({ sessions: [] }))
         : Promise.resolve({ sessions: [] }),
+      remotePromise,
       sessionCapabilityContext(),
     ]);
     return {
@@ -157,6 +165,7 @@ export function registerSessionIpc({
           source: "desktop",
         })),
         ...native.sessions,
+        ...remoteSessions,
       ].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
     };
   });

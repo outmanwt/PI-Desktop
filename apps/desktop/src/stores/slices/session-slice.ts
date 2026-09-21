@@ -315,6 +315,7 @@ export function createSessionSlice({
           commitSelection(retainedMessages, true);
         } else if (
           summary &&
+          summary.source !== "remote" &&
           get().activeSessionId !== id &&
           sessionIsReusableEmpty(summary, {
             running: runningAtSelection,
@@ -326,22 +327,26 @@ export function createSessionSlice({
           commitSelection([], true, EMPTY_SESSION_WINDOW);
         }
         if (summary) {
-          if (
-            !(await runtime.queueWorkspaceAlignment(() =>
-              alignWorkspace(summary.projectPath),
-            ))
-          ) {
-            return;
+          if (summary.source !== "remote") {
+            if (
+              !(await runtime.queueWorkspaceAlignment(() =>
+                alignWorkspace(summary.projectPath),
+              ))
+            ) {
+              return;
+            }
           }
         } else {
           detail = await detailPromise;
           if (!runtime.navigationIntentIsCurrent(intent)) return;
-          if (
-            !(await runtime.queueWorkspaceAlignment(() =>
-              alignWorkspace(detail?.session?.projectPath),
-            ))
-          ) {
-            return;
+          if (detail?.session?.source !== "remote") {
+            if (
+              !(await runtime.queueWorkspaceAlignment(() =>
+                alignWorkspace(detail?.session?.projectPath),
+              ))
+            ) {
+              return;
+            }
           }
         }
 
@@ -517,7 +522,7 @@ export function createSessionSlice({
       const source = state.sessions.find((session) => session.id === id);
       if (!source) throw new Error(i18n.t("errors.sessionNotFound"));
 
-      if (source.projectPath) {
+      if (source.source !== "remote" && source.projectPath) {
         if (
           !sessionMatchesProject(
             { projectPath: state.activeProjectPath },

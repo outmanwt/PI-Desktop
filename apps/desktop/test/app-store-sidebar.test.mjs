@@ -46,12 +46,12 @@ test("sidebar hover refreshes the active project branch without activating a pro
   assert.match(hoverSource, /setProject\(\{ space: workspace\.name, branch: workspace\.branch \}\)/);
   assert.match(sidebarSource, /branch: entry\?\.branch/);
   assert.match(sidebarSource, /for \(const entry of projectEntries\) map\.set\(entry\.key, entry\)/);
-  assert.match(sidebarSource, /projectEntriesByPath\.get\(normalizedProjectPath \?\? ""\)/);
+  assert.match(sidebarSource, /projectEntryKey\(normalizedProjectPath, remote \? session\.hostKey : undefined\)/);
 });
 
 test("closed projects are not recreated from historical sidebar sessions", () => {
   assert.doesNotMatch(sidebarSource, /add\(session\.projectPath\)/);
-  assert.match(sidebarSource, /const entry = byPath\.get\(sessionPath\)/);
+  assert.match(sidebarSource, /const entryKey = projectEntryKey\(sessionPath, remote \? session\.hostKey : undefined\)/);
   assert.match(sidebarSource, /if \(entry\) entry\.sessions\.push\(session\)/);
 });
 
@@ -84,7 +84,7 @@ test("project title toggles its conversation group without forcing it open", () 
   assert.match(projectTitleBlock, /aria-expanded=\{!collapsedProject\}/);
   assert.match(projectTitleBlock, /data-action="toggle-project-collapse"/);
   assert.match(projectTitleBlock, /sidebar-disclosure-icon/);
-  assert.match(projectTitleBlock, /setCollapsed\(entry\.path, !collapsedProject\)/);
+  assert.match(projectTitleBlock, /setCollapsed\(entry\.key, !collapsedProject\)/);
   assert.doesNotMatch(projectTitleBlock, /setCollapsed\(entry\.path, false\)/);
   assert.doesNotMatch(sidebarSource, /className="project-collapse-toggle"/);
 });

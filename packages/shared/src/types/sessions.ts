@@ -35,6 +35,10 @@ export type SessionSummary = {
   /** Number of messages in the current canonical transcript. */
   messageCount: number;
   projectPath?: string;
+  /** Remote host routing key when this session lives on a paired remote host. */
+  hostKey?: string;
+  /** Human-friendly label of the remote host (e.g. "Home PC", "台式机"). */
+  hostLabel?: string;
   modelId?: string;
   providerId?: string;
   mode: Mode;
