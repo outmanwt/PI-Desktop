@@ -5288,6 +5288,9 @@ eleven-tool-round desktop paths are verified by
 | C — 对话和直播（委托上下文预算） | E2E-SUBAGENT-context-overflow-compacts-before-failing、E2E-SUBAGENT-context-overflow-reports-actionable-failure、E2E-SUBAGENT-resume-seeds-within-context-budget |
 | 品质（委托上下文预算） | E2E-SUBAGENT-context-overflow-compacts-before-failing、E2E-SUBAGENT-context-overflow-reports-actionable-failure、E2E-SUBAGENT-resume-seeds-within-context-budget |
 | M6+（委托上下文预算） | E2E-SUBAGENT-context-overflow-compacts-before-failing、E2E-SUBAGENT-context-overflow-reports-actionable-failure、E2E-SUBAGENT-resume-seeds-within-context-budget |
+| C / F / 品质 —— 上下文估算保持安全（校准） | E2E-CONTEXT-estimate-calibration-stays-safe |
+| C — 对话与流式（工具调用 id 唯一） | E2E-RUNTIME-unique-tool-call-ids-per-request |
+| 品质（工具调用 id 唯一） | E2E-RUNTIME-unique-tool-call-ids-per-request |
 | G — 插件宿主生命周期（崩溃上报） | E2E-PLUGIN-crash-report-names-the-exit-code |
 | 品质（崩溃上报） | E2E-PLUGIN-crash-report-names-the-exit-code |
 
@@ -7900,7 +7903,7 @@ runner 会在运行时的隔离临时目录中生成六个插件形态 fixture�
 
 | ID | 场景 | 验证 |
 |---|---|---|
-| E2E-MCP-MARKET-NET-BOUNDARY | URL guard 拒绝凭据、回环、私网、special-use IPv4、v4-mapped、ULA、site-local 和 link-local 及尾点绕过形态；Main 固定已检查的公网地址并逐跳复核 HTTPS 重定向 | 确定性 guard 断言；DNS pin 与响应上限 source-contract 覆盖 |
+| E2E-MCP-MARKET-NET-BOUNDARY | URL guard 拒绝凭据、回环、私网、special-use IPv4、v4-mapped、ULA、site-local 和 link-local 及尾点绕过形态；direct/unknown 默认固定已检查的公网地址，完整 proxied 线路使用 session 传输，显式 `allowFakeIp` 可覆盖透明路由器 fake-IP 源但不允许真实私网答案 | 确定性 guard 断言；DNS pin、代理线路选择、fake-IP 选项范围与响应上限 source-contract 覆盖 |
 | E2E-MCP-MARKET-SEMANTICS | Registry 记录映射为安装模板时保留包版本、named/positional runtime/package 参数与 required/optional 环境变量语义；远端 header 变量同时识别注册表的 `{name}` 与目录的 `${NAME}` 两种写法，仅为已声明的可编辑值显示输入，保留未声明花括号字面量，并按各 header 的作用域处理默认值、固定值与可选标记，不合并不同 header 的同名输入（ADR registry-header-variable-spelling） | 确定性映射断言 |
 | E2E-MCP-MARKET-INSTALL | 内置目录条目经 `resolveCatalogEntry` 解析并通过宿主 `mcp.upsert` RPC 安装；记录落盘 `~/.agents/servers/` | 真实宿主二进制，隔离临时 HOME |
 | E2E-MCP-MARKET-HEADER-SCOPE | Registry header-local `{token}` resolves only in its header; same-named URL path/query tokens remain literal through mapping, resolution, host upsert/list and persistence. URL templates retain only legacy `${NAME}` substitution. When `headerBindings` exists (even empty or partial), unbound tokens in every header stay literal and never consume another header's input or default | shared regressions plus real host binary with isolated temporary storage; remote entry disabled, no network call |
@@ -8339,6 +8342,29 @@ the latest destination. These assertions measure work counts, not device FPS.
 - **规格：** 04-ux/06-settings-ia、04-ux/08-component-spec、
   04-ux/09-interaction-patterns；ADR turn-process-and-thinking-display。
 
+### E2E-CONTEXT-estimate-calibration-stays-safe
+
+- **先决条件：** 可脚本化上报用量的确定性提供商夹具；占用接近硬边界的会话；不使用真实凭据。
+- **步骤：** 连续上报低于预测的用量，确认显示占用不低于下限且压缩仍然触发；上报远离合理区间的用量，确认数值不动；跑一个
+  中文为主的会话，比较显示占用与上报用量。
+- **预期：** 校准后的占用保持在原始估算的 0.85×–6× 之内；有证据即上调；只有方向一致的样本才下调；处在硬限制 1.18× 的
+  投影仍触发压缩；误报不产生任何方向的移动；中文文本不再只有实测成本的四分之一。
+- **规格：** 03-runtime/02-agent-runtime §5.1、08-meta/decisions-log D606。**验收：** C（对话与流）、F（持久化）、品质。
+  **状态：** 单元测试覆盖（含中文与边界用例）；桌面 E2E 待补。
+
+### E2E-RUNTIME-unique-tool-call-ids-per-request
+
+- **先决条件：** 一份把同一次工具调用携带两次的会话转录（重试追加让该调用落在第二个行 id 上），在确定性提供商夹具下加载进
+  重新创建的运行时；不使用真实凭据。
+- **步骤：** 发一条提示，使运行时组装并发出请求。读取夹具收到的出站请求与 `agent` 日志通道。再用工具调用本就唯一的转录重复一次。
+- **预期：** 出站请求对那个 id 只携带一个 `toolCall` 与恰好一个对应结果，因此提供商不可能回 `tool_use ids must be unique`；
+  日志通道出现一行，带会话与 id。唯一转录的请求逐字不变，且不产生任何日志。
+- **规格：** 03-runtime/02-agent-runtime §5、08-meta/decisions-log D608。**验收：** C（对话与流）、品质。
+  **里程碑：** Post-MVP 回归覆盖。
+- **自动化：** `packages/agent-runtime/src/runtime.test.ts` 用真实的运行时覆盖两半：重复历史（丢弃 + 一行日志）与唯一历史
+  （同一对象、无日志）。
+- **状态：** 单元测试覆盖；没有端到端驱动对重复转录发出真实提供商请求。
+
 ### E2E-MCP-HTTP-ACK — HTTP acknowledgement and authorization status
 
 - **Preconditions**: A local mock Streamable HTTP server returns JSON for
@@ -8370,3 +8396,11 @@ the latest destination. These assertions measure work counts, not device FPS.
 - **自动化：** `apps/desktop/test/plugin-services.test.mjs` 真实 fork 宿主进程、以夹具退出码杀死它，并断言服务状态与审计记录上的
   退出码及原始 stderr 缺失；`plugin-isolation.test.mjs` 与关闭用例覆盖"退出不是崩溃"那一半。
 - **状态：** 运行时层已自动化；无 UI 驱动读取插件页的错误文本。
+
+
+#### E2E-CHAT-parenthesized-url：用户消息中的完整网址
+
+- **步骤**：在用户消息中发送 `https://en.wikipedia.org/wiki/React_(software)` 并点击链接，再验证正文用圆括号包裹该网址、网址后跟句号及紧接另一链接或文件引用的情况。
+- **预期**：打开包含 `(software)` 的完整网址，进入 React 软件词条；正文外层的右括号和紧跟 URL 右括号的句末标点不属于链接，相邻引用仍能独立点击。嵌套圆括号、查询和片段内的圆括号、百分号编码的圆括号均保持完整。
+- **覆盖**：`chat-links.test.mjs`；桌面端通过正常浏览器目标实际点击验证。
+- **链接规格**：`04-ux/08-component-spec.md` §8.3。
