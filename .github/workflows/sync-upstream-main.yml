@@ -1,0 +1,58 @@
+# Keep the fork's `main` current with the upstream repository.
+#
+# This workflow belongs to personal forks: it merges `vastsa/PI-Desktop` main
+# into this repository's main on a schedule, so the fork stays usable as a
+# build source without manual "Sync fork" clicks. Repository work still happens
+# on short-lived branches and lands through pull requests; this workflow only
+# advances `main`.
+#
+# Why a merge and not a fast-forward: a fork's main carries the merged request
+# branches of this repository, so it permanently diverges from upstream. A
+# fast-forward is therefore impossible by design, and a conflict must surface
+# as a failed run instead of a silently rewritten history.
+
+name: Sync upstream main
+
+on:
+  schedule:
+    # Every six hours, at an off-peak minute to avoid the top-of-hour rush.
+    - cron: '23 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Merge upstream main into fork main
+    # Fork-only by construction. Inside the canonical repository this workflow
+    # is a no-op: its main is the upstream source of truth.
+    if: github.repository != 'vastsa/PI-Desktop'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Merge upstream main
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/vastsa/PI-Desktop.git
+          git fetch --no-tags upstream main
+          if git merge-base --is-ancestor FETCH_HEAD HEAD; then
+            echo "Fork main already contains upstream main; nothing to do."
+            exit 0
+          fi
+          echo "Fork main is behind upstream main; merging."
+          git merge --no-edit FETCH_HEAD
+          git push origin HEAD:main
+          echo "Synced fork main with upstream main:"
+          git log --oneline -n 1
