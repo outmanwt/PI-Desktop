@@ -1,58 +1,76 @@
-# Keep the fork's `main` current with the upstream repository.
+# Open a pull request that syncs this fork with upstream.
 #
-# This workflow belongs to personal forks: it merges `vastsa/PI-Desktop` main
-# into this repository's main on a schedule, so the fork stays usable as a
-# build source without manual "Sync fork" clicks. Repository work still happens
-# on short-lived branches and lands through pull requests; this workflow only
-# advances `main`.
-#
-# Why a merge and not a fast-forward: a fork's main carries the merged request
-# branches of this repository, so it permanently diverges from upstream. A
-# fast-forward is therefore impossible by design, and a conflict must surface
-# as a failed run instead of a silently rewritten history.
+# Directly pushing a merge that changes `.github/workflows/**` is rejected by
+# GitHub's GITHUB_TOKEN unless the token has the special `workflows` scope.
+# Opening a PR avoids that restriction and gives the fork owner one explicit
+# review/merge step. The job is fork-only; the canonical upstream repository is
+# never modified.
 
 name: Sync upstream main
 
 on:
   schedule:
-    # Every six hours, at an off-peak minute to avoid the top-of-hour rush.
     - cron: '23 */6 * * *'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  pull-requests: write
 
 concurrency:
   group: sync-upstream-main
   cancel-in-progress: false
 
 jobs:
-  sync:
-    name: Merge upstream main into fork main
-    # Fork-only by construction. Inside the canonical repository this workflow
-    # is a no-op: its main is the upstream source of truth.
+  open-sync-pr:
+    name: Open upstream sync PR
     if: github.repository != 'vastsa/PI-Desktop'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: main
-          fetch-depth: 0
-
-      - name: Merge upstream main
+      - name: Check for an existing sync PR
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git remote add upstream https://github.com/vastsa/PI-Desktop.git
-          git fetch --no-tags upstream main
-          if git merge-base --is-ancestor FETCH_HEAD HEAD; then
-            echo "Fork main already contains upstream main; nothing to do."
+          encoded_head="vastsa:main"
+          existing="$(curl --fail-with-body --silent --show-error \
+            --get "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            --data-urlencode 'state=open' \
+            --data-urlencode 'base=main' \
+            --data-urlencode "head=${encoded_head}")"
+          if [[ "$(jq 'length' <<<"$existing")" -gt 0 ]]; then
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            echo 'An upstream sync PR is already open.'
+          else
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create upstream sync PR
+        if: steps.existing.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          compare="$(curl --fail-with-body --silent --show-error \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/compare/main...vastsa:main" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json')"
+          commit_count="$(jq '.commits | length' <<<"$compare")"
+          if [[ "$commit_count" -eq 0 ]]; then
+            echo 'Fork main already contains upstream main; no PR needed.'
             exit 0
           fi
-          echo "Fork main is behind upstream main; merging."
-          git merge --no-edit FETCH_HEAD
-          git push origin HEAD:main
-          echo "Synced fork main with upstream main:"
-          git log --oneline -n 1
+          payload="$(jq -n \
+            --arg title 'chore(sync): update fork main from upstream' \
+            --arg body 'Automated sync request from `vastsa/PI-Desktop:main`. Merge this PR to bring upstream changes into the fork without granting the workflow permission to push `.github/workflows/**` directly.' \
+            '{title: $title, head: "vastsa:main", base: "main", body: $body}')"
+          curl --fail-with-body --silent --show-error \
+            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls" \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'Content-Type: application/json' \
+            --data "$payload"
