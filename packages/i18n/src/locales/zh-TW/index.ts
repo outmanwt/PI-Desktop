@@ -984,6 +984,11 @@ sklm: {
     import: "匯入",
     projectArchive: "專案歸檔",
     remoteHosts: {
+      sshProfiles: "SSH 設定",
+      scanningSsh: "掃描中…",
+      scanSsh: "掃描 SSH 設定",
+      sshConnect: "安裝並連線",
+      noSshProfiles: "找不到 SSH 主機別名。",
       title: "遠端主機",
       listError: "載入失敗",
       loading: "載入中…",

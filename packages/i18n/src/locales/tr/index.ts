@@ -999,6 +999,11 @@ sklm: {
     import: "İçe aktar",
     projectArchive: "Proje arşivi",
     remoteHosts: {
+      sshProfiles: "SSH yapılandırması",
+      scanningSsh: "Taranıyor…",
+      scanSsh: "SSH yapılandırmasını tara",
+      sshConnect: "Kur ve bağlan",
+      noSshProfiles: "SSH ana bilgisayar diğer adları bulunamadı.",
       title: "Uzak ana bilgisayarlar",
       listError: "Ana bilgisayarlar yüklenemedi",
       loading: "Yükleniyor…",

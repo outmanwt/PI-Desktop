@@ -1001,6 +1001,11 @@ sklm: {
     "import": "Importation",
     "projectArchive": "Archive du projet",
     "remoteHosts": {
+      "sshProfiles": "Configuration SSH",
+      "scanningSsh": "Analyse en cours…",
+      "scanSsh": "Analyser la configuration SSH",
+      "sshConnect": "Installer et se connecter",
+      "noSshProfiles": "Aucun alias d'hôte SSH trouvé.",
       "title": "Hôtes distants",
       "listError": "Impossible de charger les hôtes",
       "loading": "Chargement…",

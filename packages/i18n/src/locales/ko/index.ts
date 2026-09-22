@@ -1009,6 +1009,11 @@ sklm: {
     import: "가져오기",
     projectArchive: "프로젝트 보관함",
     remoteHosts: {
+      sshProfiles: "SSH 구성",
+      scanningSsh: "스캔 중…",
+      scanSsh: "SSH 구성 스캔",
+      sshConnect: "설치 및 연결",
+      noSshProfiles: "SSH 호스트 별칭을 찾지 못했습니다.",
       title: "원격 호스트",
       listError: "호스트를 불러오지 못했습니다",
       loading: "로드 중…",
