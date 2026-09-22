@@ -4,6 +4,7 @@ import type { RemoteHostSshProfile } from "@pi-desktop/shared";
 import { api } from "../../lib/api";
 import { useAppStore } from "../../stores/app-store";
 import { Button } from "../ui";
+import { IconKey, IconRefresh, IconServer, IconTerminal } from "../icons";
 
 export function SshProfilesPanel({ onConnected }: { onConnected: () => Promise<void> }) {
   const { t } = useTranslation();
@@ -65,46 +66,104 @@ export function SshProfilesPanel({ onConnected }: { onConnected: () => Promise<v
   return (
     <section className="settings-card-block settings-remote-ssh-scan" aria-busy={scanning || connecting !== null}>
       <div className="settings-card-heading-row">
-        <h3 className="settings-card-heading">
-          {t("settings.remoteHosts.sshProfiles", { defaultValue: "SSH config" })}
-        </h3>
-        <Button type="button" variant="ghost" disabled={scanning} onClick={() => void scan()}>
-          {scanning
-            ? t("settings.remoteHosts.scanningSsh", { defaultValue: "Scanning…" })
-            : t("settings.remoteHosts.scanSsh", { defaultValue: "Scan SSH config" })}
+        <div className="settings-remote-ssh-heading-left">
+          <h3 className="settings-card-heading">
+            {t("settings.remoteHosts.sshProfiles", { defaultValue: "SSH config" })}
+          </h3>
+          {profiles.length > 0 ? (
+            <span className="plugins-group-count">{profiles.length}</span>
+          ) : null}
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={scanning}
+          onClick={() => void scan()}
+          className="settings-remote-ssh-scan-btn"
+        >
+          <IconRefresh size={13} className={scanning ? "settings-remote-ssh-spinning" : undefined} />
+          <span>
+            {scanning
+              ? t("settings.remoteHosts.scanningSsh", { defaultValue: "Scanning…" })
+              : t("settings.remoteHosts.scanSsh", { defaultValue: "Scan SSH config" })}
+          </span>
         </Button>
       </div>
       {profiles.length > 0 ? (
-        <div className="settings-remote-ssh-profiles" role="list">
-          {profiles.map((profile) => (
-            <div className="settings-remote-ssh-profile" key={profile.alias} role="listitem">
-              <div className="settings-remote-ssh-profile-copy">
-                <strong>{profile.alias}</strong>
-                <span>
-                  {profile.user ? `${profile.user}@` : ""}
-                  {profile.host}
-                  {profile.port ? `:${profile.port}` : ""}
-                </span>
-                {profile.identityFile ? <small>{profile.identityFile.split(/[\\/]/).at(-1)}</small> : null}
-              </div>
-              <Button
-                type="button"
-                variant="primary"
-                disabled={scanning || connecting !== null}
-                onClick={() => void connect(profile)}
+        <div className="plugins-list settings-remote-ssh-profiles" role="list">
+          {profiles.map((profile) => {
+            const isConnecting = connecting === profile.alias;
+            const keyName = profile.identityFile?.split(/[\\/]/).at(-1);
+            return (
+              <div
+                className="plugins-row settings-remote-ssh-profile"
+                key={profile.alias}
+                role="listitem"
               >
-                {connecting === profile.alias
-                  ? t("settings.remoteHosts.sshRunning", { defaultValue: "Connecting…" })
-                  : t("settings.remoteHosts.sshConnect", { defaultValue: "Install & connect" })}
-              </Button>
-            </div>
-          ))}
+                <span className="plugins-glyph" aria-hidden>
+                  <IconServer size={15} />
+                </span>
+                <div className="plugins-row-copy settings-remote-ssh-profile-copy">
+                  <div className="plugins-row-title">
+                    <span className="plugins-row-name">{profile.alias}</span>
+                    {profile.port && profile.port !== 22 ? (
+                      <span className="plugins-tag">:{profile.port}</span>
+                    ) : null}
+                  </div>
+                  <div className="plugins-row-meta">
+                    <span className="plugins-row-id">
+                      {profile.user ? `${profile.user}@` : ""}
+                      {profile.host}
+                    </span>
+                    {keyName ? (
+                      <>
+                        <span className="plugins-dot" aria-hidden>
+                          ·
+                        </span>
+                        <span className="settings-remote-ssh-key" title={profile.identityFile}>
+                          <IconKey size={12} />
+                          <span>{keyName}</span>
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+                <div className="plugins-row-controls">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={scanning || connecting !== null}
+                    onClick={() => void connect(profile)}
+                  >
+                    {isConnecting ? (
+                      <>
+                        <IconRefresh size={13} className="settings-remote-ssh-spinning" />
+                        <span>{t("settings.remoteHosts.sshRunning", { defaultValue: "Connecting…" })}</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconTerminal size={13} />
+                        <span>{t("settings.remoteHosts.sshConnect", { defaultValue: "Install & connect" })}</span>
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="settings-remote-host-empty" role="status">
-          {scanning
-            ? t("settings.remoteHosts.scanningSsh", { defaultValue: "Scanning…" })
-            : t("settings.remoteHosts.noSshProfiles", { defaultValue: "No SSH host aliases found." })}
+          <span className="plugins-glyph" aria-hidden>
+            <IconServer size={15} />
+          </span>
+          <span>
+            {scanning
+              ? t("settings.remoteHosts.scanningSsh", { defaultValue: "Scanning…" })
+              : t("settings.remoteHosts.noSshProfiles", { defaultValue: "No SSH host aliases found." })}
+          </span>
         </div>
       )}
     </section>
