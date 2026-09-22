@@ -5,6 +5,8 @@
 #
 # This fork publishes Windows and Linux only. The application may still retain
 # macOS source support, but macOS signing/build jobs are intentionally absent.
+# The upstream release flow is retained for the shared build and verification
+# contracts; this fork intentionally publishes only the supported fork targets.
 
 name: Release
 
@@ -154,6 +156,7 @@ jobs:
           compression-level: 0
           path: |
             apps/desktop/release/*.exe
+            apps/desktop/release/*.zip
             apps/desktop/release/*.AppImage
             apps/desktop/release/*.deb
             apps/desktop/release/*.rpm
@@ -256,8 +259,10 @@ jobs:
       - name: Create or update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          # Fork nightly releases use a stable tag and the current commit.
           tag_name: ${{ github.ref == 'refs/heads/main' && 'nightly' || github.ref_name }}
           target_commitish: ${{ github.sha }}
+          # Windows/Linux installers, ZIPs, updater feeds, and pi-host are uploaded below.
           files: dist/*
           overwrite_files: true
           generate_release_notes: ${{ startsWith(github.ref, 'refs/tags/v') }}
