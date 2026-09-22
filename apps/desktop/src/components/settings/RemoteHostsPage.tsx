@@ -15,6 +15,7 @@ import type { RemoteHostSshAuth, RemoteHostSummary } from "@pi-desktop/shared";
 import { api } from "../../lib/api";
 import { useAppStore } from "../../stores/app-store";
 import { Badge, Button, Field, Input, PasswordInput, cx } from "../ui";
+import { SshProfilesPanel } from "./SshProfilesPanel";
 
 type AddMode = "ssh" | "pair";
 
@@ -237,7 +238,7 @@ export function RemoteHostsPage() {
           ))
         )}
       </div>
-
+      <SshProfilesPanel onConnected={refresh} />
       <section className="settings-card-block">
         <div className="settings-card-heading-row settings-remote-host-add-heading">
           <h3 className="settings-card-heading">{t("settings.remoteHosts.addTitle")}</h3>

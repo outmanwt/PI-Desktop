@@ -57,6 +57,17 @@ export type RemoteHostSshMetadata = {
   version: string;
 };
 
+/** Safe renderer-facing metadata discovered from the user's SSH config. */
+export type RemoteHostSshProfile = {
+  alias: string;
+  host: string;
+  user?: string;
+  port?: number;
+  /** Path only; the private key contents are never read or returned. */
+  identityFile?: string;
+  configPath?: string;
+};
+
 export type RemoteHostSummary = {
   hostKey: string;
   label: string;
