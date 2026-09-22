@@ -274,11 +274,11 @@ test("packaging publishes an electron-updater feed for GitHub Releases", () => {
     "PI-Desktop-Portable",
     "portable extraction path stays stable for Windows taskbar identity",
   );
-  // The upload step must carry every updater feed, and the release publishes
-  // all platforms unfiltered (D126/D285).
-  assert.match(releaseWorkflowSource, /release\/\*\.zip/);
+  // This fork publishes Windows/Linux only, plus the Linux pi-host bundle.
+  assert.match(releaseWorkflowSource, /release\/\*\.exe/);
   assert.match(releaseWorkflowSource, /release\/\*\.rpm/);
   assert.match(releaseWorkflowSource, /release\/latest\*\.yml/);
+  assert.match(releaseWorkflowSource, /pi-host-\*-linux-x64\.tar\.gz/);
   assert.match(releaseWorkflowSource, /files: dist\/\*/);
 });
 

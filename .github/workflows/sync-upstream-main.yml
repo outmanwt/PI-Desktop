@@ -1,17 +1,18 @@
-# Keep this fork's `main` current with the upstream repository.
-# GitHub's official merge-upstream endpoint performs the server-side merge,
-# including workflow-file changes, without requiring a cross-fork PR or a
-# workflow token with the special `workflows` permission.
+# Keep this fork's main current with vastsa/PI-Desktop automatically.
+# The workflow preserves fork commits, reapplies the fork-only update-feed
+# override, and opens an Issue instead of silently dropping a merge conflict.
 
 name: Sync upstream main
 
 on:
   schedule:
-    - cron: '23 */6 * * *'
+    - cron: '17 */2 * * *'
   workflow_dispatch:
 
 permissions:
   contents: write
+  issues: write
+  actions: write
 
 concurrency:
   group: sync-upstream-main
@@ -20,20 +21,107 @@ concurrency:
 jobs:
   sync:
     name: Merge upstream main into fork main
-    if: github.repository != 'vastsa/PI-Desktop'
+    if: github.repository == 'outmanwt/PI-Desktop'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
+      - name: Check out fork main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ github.token }}
+
+      - name: Configure Git remotes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/vastsa/PI-Desktop.git
+          git fetch --no-tags upstream main
+
       - name: Merge upstream main
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error \
-            -X POST "https://api.github.com/repos/${GITHUB_REPOSITORY}/merge-upstream" \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'Accept: application/vnd.github+json' \
-            -H 'Content-Type: application/json' \
-            --data '{"branch":"main"}')"
-          echo "$response"
-          echo "Upstream merge request completed."
+          conflict_title="Upstream sync conflict: ${GITHUB_REPOSITORY} main"
+          open_conflict_issue() {
+            if ! gh issue list --state open --search "in:title $conflict_title" --json title --jq '.[].title' | grep -Fxq "$conflict_title"; then
+              gh issue create \
+                --title "$conflict_title" \
+                --body "Automatic upstream sync could not merge vastsa/PI-Desktop:main into main. Resolve the unexpected conflict in a branch, then close this issue." || true
+            fi
+          }
+
+          if git merge --no-edit upstream/main; then
+            echo "Upstream merge completed."
+          else
+            ours=(
+              .github/workflows/release.yml
+              .github/workflows/sync-upstream-main.yml
+            )
+            theirs=(
+              README.md
+              README.zh-CN.md
+              apps/desktop/package.json
+              apps/desktop/electron/main/updater.ts
+              apps/desktop/test/auto-update.test.mjs
+              apps/desktop/test/remote-host-bootstrap-script.test.mjs
+              apps/desktop/test/remote-host-pi-host-release.test.mjs
+              apps/desktop/test/remote-host-ssh-bootstrap.test.mjs
+              packages/shared/src/github-feedback.test.ts
+              packages/shared/src/github-feedback.ts
+            )
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            unexpected=""
+            while IFS= read -r path; do
+              [ -z "$path" ] && continue
+              known=false
+              for candidate in "${ours[@]}" "${theirs[@]}"; do
+                [ "$path" = "$candidate" ] && known=true
+              done
+              [ "$known" = true ] || unexpected="${unexpected}\n${path}"
+            done <<< "$conflicts"
+            if [ -n "$unexpected" ]; then
+              git merge --abort || true
+              open_conflict_issue
+              echo -e "::error::Unexpected upstream merge conflicts:${unexpected}"
+              exit 1
+            fi
+            for path in "${ours[@]}"; do
+              if printf '%s\n' "$conflicts" | grep -Fxq "$path"; then
+                git checkout --ours -- "$path"
+                git add -- "$path"
+              fi
+            done
+            for path in "${theirs[@]}"; do
+              if printf '%s\n' "$conflicts" | grep -Fxq "$path"; then
+                git checkout --theirs -- "$path"
+                git add -- "$path"
+              fi
+            done
+            git commit --no-edit
+            echo "Known fork/upstream conflicts were resolved automatically."
+          fi
+
+      - name: Reapply fork release-feed overrides
+        run: node scripts/fork-overrides.mjs
+
+      - name: Commit fork-only override changes
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            echo "Fork release-feed overrides already match."
+          else
+            git add -A -- apps/desktop/package.json apps/desktop/electron/main/updater.ts apps/desktop/test/auto-update.test.mjs packages/shared/src/github-feedback.ts packages/shared/src/github-feedback.test.ts apps/desktop/test/remote-host-pi-host-release.test.mjs apps/desktop/test/remote-host-ssh-bootstrap.test.mjs apps/desktop/test/remote-host-bootstrap-script.test.mjs README.md README.zh-CN.md scripts/fork-overrides.mjs
+            git commit -m "chore(fork): preserve fork release feed"
+          fi
+
+      - name: Push synchronized main
+        run: git push origin HEAD:main
+
+      - name: Dispatch nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run release.yml --ref main
