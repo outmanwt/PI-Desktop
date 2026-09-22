@@ -127,7 +127,7 @@ test("updater gates delivery mode by platform and delivery policy", () => {
   assert.match(updaterSource, /autoUpdater\.on\("error"/);
   assert.match(
     updaterSource,
-    /github\.com\/vastsa\/PI-Desktop\/releases/,
+    /github\.com\/outmanwt\/PI-Desktop\/releases/,
     "releases fallback URL",
   );
   assert.match(
@@ -151,6 +151,11 @@ test("updater gates delivery mode by platform and delivery policy", () => {
     "auto GitHub checks must not wait for Chromium's ~60s socket timeout",
   );
   assert.match(updaterSource, /raceWithTimeout/);
+  assert.match(
+    updaterSource,
+    /ERR_UPDATER_LATEST_VERSION_NOT_FOUND/,
+    "a feed repository with no published release is not an update error",
+  );
   assert.match(updaterSource, /UPDATE_CHECK_TIMEOUT/);
   assert.match(
     updaterSource,
@@ -225,7 +230,7 @@ test("packaging publishes an electron-updater feed for GitHub Releases", () => {
   const pkg = JSON.parse(pkgSource);
   assert.ok(pkg.dependencies["electron-updater"], "electron-updater dependency");
   assert.equal(pkg.build.publish[0].provider, "github");
-  assert.equal(pkg.build.publish[0].owner, "vastsa");
+  assert.equal(pkg.build.publish[0].owner, "outmanwt");
   assert.equal(pkg.build.publish[0].repo, "PI-Desktop");
   const macTargets = pkg.build.mac.target.map((entry) => entry.target);
   assert.ok(macTargets.includes("zip"), "mac zip target (Squirrel.Mac feed)");

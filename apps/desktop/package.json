@@ -83,7 +83,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "vastsa",
+        "owner": "outmanwt",
         "repo": "PI-Desktop"
       }
     ],
