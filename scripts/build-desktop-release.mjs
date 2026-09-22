@@ -18,13 +18,25 @@ if (!["linux", "mac", "win"].includes(target)) {
   throw new Error(`Unsupported desktop release target: ${target}`);
 }
 
-const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+function quoteForCmd(value) {
+  const text = String(value);
+  if (text.length === 0) return "\"\"";
+  if (!/[\s"&|<>^%]/.test(text)) return text;
+  return `"${text.replace(/"/g, "\"\"")}"`;
+}
 
 function runBuilder(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(pnpmCommand, ["exec", "electron-builder", ...args], {
-      stdio: "inherit",
-    });
+    const builderArgs = ["exec", "electron-builder", ...args];
+    // Node 24 rejects spawn("pnpm.cmd") with EINVAL. Resolve pnpm through
+    // cmd.exe and pass one already-quoted command line (no shell:true).
+    const child = process.platform === "win32"
+      ? spawn(
+          process.env.ComSpec || "cmd.exe",
+          ["/d", "/s", "/c", ["pnpm", ...builderArgs].map(quoteForCmd).join(" ")],
+          { stdio: "inherit", windowsHide: true },
+        )
+      : spawn("pnpm", builderArgs, { stdio: "inherit" });
 
     child.once("error", reject);
     child.once("exit", (code, signal) => {
