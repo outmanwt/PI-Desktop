@@ -14,6 +14,7 @@ const labels = {
     opencode: "OpenCode",
     codex: "Codex",
     pi: "Pi",
+    workbuddy: "WorkBuddy",
   },
 };
 
@@ -78,6 +79,17 @@ test("groups candidates by source and orders groups by latest activity", () => {
       { id: "source:codex", name: "Codex" },
     ],
   );
+test("labels WorkBuddy source groups", () => {
+  const groups = groupImportCandidates(
+    [candidate({ source: "workbuddy", externalId: "workbuddy" })],
+    "source",
+    labels,
+  );
+
+  assert.deepEqual(groups.map(({ id, name }) => ({ id, name })), [
+    { id: "source:workbuddy", name: "WorkBuddy" },
+  ]);
+});
 });
 
 test("extracts project names from POSIX and Windows paths", () => {

@@ -484,6 +484,7 @@ export function SessionImportPanel() {
         opencode: t("settings.importSourceOpenCode"),
         codex: t("settings.importSourceCodex"),
         pi: t("settings.importSourcePi"),
+        workbuddy: t("settings.importSourceWorkBuddy"),
       } as Record<ImportCandidate["source"], string>,
     }),
     [t],
