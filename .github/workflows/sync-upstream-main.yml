@@ -24,6 +24,9 @@ jobs:
     if: github.repository == 'outmanwt/PI-Desktop'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Check out fork main
         uses: actions/checkout@v7
@@ -41,14 +44,13 @@ jobs:
           git fetch --no-tags upstream main
 
       - name: Merge upstream main
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           conflict_title="Upstream sync conflict: ${GITHUB_REPOSITORY} main"
           open_conflict_issue() {
-            if ! gh issue list --state open --search "in:title $conflict_title" --json title --jq '.[].title' | grep -Fxq "$conflict_title"; then
+            if ! gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title $conflict_title" --json title --jq '.[].title' | grep -Fxq "$conflict_title"; then
               gh issue create \
+                --repo "$GITHUB_REPOSITORY" \
                 --title "$conflict_title" \
                 --body "Automatic upstream sync could not merge vastsa/PI-Desktop:main into main. Resolve the unexpected conflict in a branch, then close this issue." || true
             fi
@@ -122,6 +124,4 @@ jobs:
         run: git push origin HEAD:main
 
       - name: Dispatch nightly release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run release.yml --ref main
+        run: gh workflow run release.yml --repo ${{ github.repository }} --ref main
