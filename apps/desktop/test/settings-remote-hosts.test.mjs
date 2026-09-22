@@ -53,6 +53,16 @@ test("remote hosts omits instructional copy", () => {
   assert.match(panel, /api\.bootstrapRemoteHost\(\{/);
 });
 
+test("SSH profiles uses plugin-style card tiles, glyph, and tag badges", () => {
+  assert.match(panel, /className="plugins-glyph"/);
+  assert.match(panel, /className="plugins-row-name"/);
+  assert.match(panel, /className="plugins-tag"/);
+  assert.match(panel, /className="plugins-row-meta"/);
+  assert.match(panel, /className="plugins-row-controls"/);
+  assert.match(cssRule(".settings-remote-ssh-profile"), /background:\s*var\(--ds-tile\)/);
+  assert.match(cssRule(".settings-remote-ssh-profile"), /border-radius:\s*var\(--radius-md-plus\)/);
+});
+
 test("the remote-hosts destination is marked experimental", () => {
   assert.match(settings, /item\.id === "remoteHosts"/);
   assert.match(settings, /settings\.remoteHosts\.experimental/);

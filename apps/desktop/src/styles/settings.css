@@ -818,44 +818,68 @@
 
 .settings-card-heading-row.settings-remote-host-add-heading .settings-card-heading {
   margin-bottom: 0;
+}
+
 .settings-remote-ssh-scan {
+  display: flex;
+  flex-direction: column;
   gap: var(--space-3);
 }
 
-.settings-remote-ssh-profiles {
-  display: grid;
+.settings-remote-ssh-heading-left {
+  display: flex;
+  align-items: center;
   gap: var(--space-2);
+}
+
+.settings-remote-ssh-scan-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.settings-remote-ssh-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .settings-remote-ssh-profile {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-3);
-  border: 1px solid var(--ds-border-subtle);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-md-plus);
   background: var(--ds-tile);
+  transition: background var(--motion-duration-fast) var(--motion-ease-out);
+}
+
+.settings-remote-ssh-profile:hover {
+  background: var(--ds-tile-hover);
 }
 
 .settings-remote-ssh-profile-copy {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   min-width: 0;
-  gap: var(--space-1);
+  flex: 1;
 }
 
-.settings-remote-ssh-profile-copy strong,
-.settings-remote-ssh-profile-copy span,
-.settings-remote-ssh-profile-copy small {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.settings-remote-ssh-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
 }
 
-.settings-remote-ssh-profile-copy span,
-.settings-remote-ssh-profile-copy small {
+.settings-remote-ssh-key svg {
   color: var(--ds-text-muted);
 }
+
+.settings-remote-ssh-spinning {
+  animation: spin 1s linear infinite;
 }
 
 .settings-remote-host-form {
