@@ -884,6 +884,11 @@ sklm: {
     import: "Import",
     projectArchive: "Project archive",
     remoteHosts: {
+      sshProfiles: "SSH config",
+      scanningSsh: "Scanning…",
+      scanSsh: "Scan SSH config",
+      sshConnect: "Install & connect",
+      noSshProfiles: "No SSH host aliases found.",
       title: "Remote hosts",
       listError: "Failed to load hosts",
       loading: "Loading…",

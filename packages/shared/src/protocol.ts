@@ -181,6 +181,7 @@ export const IPC = {
      * crosses this channel.
      */
     remoteHostBootstrap: "pi-desktop/remoteHost/bootstrap",
+    remoteHostSshScan: "pi-desktop/remoteHost/sshScan",
     providersList: "pi-desktop/providers/list",
     providersReorder: "pi-desktop/providers/reorder",
     providersCreate: "pi-desktop/providers/create",

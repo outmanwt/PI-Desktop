@@ -15,6 +15,10 @@ const page = readFileSync(
   new URL("../src/components/settings/RemoteHostsPage.tsx", import.meta.url),
   "utf8",
 );
+const panel = readFileSync(
+  new URL("../src/components/settings/SshProfilesPanel.tsx", import.meta.url),
+  "utf8",
+);
 const settings = readSettingsSourceSync();
 const styles = loadStylesSync();
 
@@ -45,7 +49,8 @@ test("remote hosts omits instructional copy", () => {
   assert.doesNotMatch(page, /settings-row-desc/);
   assert.doesNotMatch(page, /hint=\{/);
   assert.doesNotMatch(page, /settings\.remoteHosts\.(overview|sshBody|pairBody|emptyBody)/);
-  assert.doesNotMatch(page, /<SettingsCard title=\{t\("settings\.remoteHosts\.listTitle"\)\}/);
+  assert.match(panel, /Scan SSH config|settings\.remoteHosts\.scanSsh/);
+  assert.match(panel, /api\.bootstrapRemoteHost\(\{/);
 });
 
 test("the remote-hosts destination is marked experimental", () => {

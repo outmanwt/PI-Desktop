@@ -107,6 +107,7 @@ import type {
   RemoteHostBootstrapResult,
   RemoteHostPairRequest,
   RemoteHostPairResult,
+  RemoteHostSshProfile,
   RemoteHostSummary,
   UpdateState,
   WindowControlAction,
@@ -1510,6 +1511,9 @@ export const api = {
    */
   bootstrapRemoteHost: (request: RemoteHostBootstrapRequest) =>
     invoke<RemoteHostBootstrapResult>(IPC.invoke.remoteHostBootstrap, request),
+  /** Scan the local OpenSSH config without reading private key contents. */
+  scanRemoteHostSshProfiles: () =>
+    invoke<{ profiles: RemoteHostSshProfile[] }>(IPC.invoke.remoteHostSshScan),
   /** Close and drop a paired host by its stable routing key. */
   removeRemoteHost: (hostKey: string) =>
     invoke<{ ok: true }>(IPC.invoke.remoteHostRemove, { hostKey }),

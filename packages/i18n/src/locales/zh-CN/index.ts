@@ -984,6 +984,11 @@ sklm: {
     import: "导入",
     projectArchive: "项目归档",
     remoteHosts: {
+      sshProfiles: "SSH 配置",
+      scanningSsh: "扫描中…",
+      scanSsh: "扫描 SSH 配置",
+      sshConnect: "安装并连接",
+      noSshProfiles: "未找到 SSH 主机别名。",
       title: "远程主机",
       listError: "加载失败",
       loading: "加载中…",

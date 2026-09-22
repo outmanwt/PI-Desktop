@@ -761,6 +761,44 @@
 
 .settings-card-heading-row.settings-remote-host-add-heading .settings-card-heading {
   margin-bottom: 0;
+.settings-remote-ssh-scan {
+  gap: var(--space-3);
+}
+
+.settings-remote-ssh-profiles {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.settings-remote-ssh-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border: 1px solid var(--ds-border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--ds-tile);
+}
+
+.settings-remote-ssh-profile-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.settings-remote-ssh-profile-copy strong,
+.settings-remote-ssh-profile-copy span,
+.settings-remote-ssh-profile-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-remote-ssh-profile-copy span,
+.settings-remote-ssh-profile-copy small {
+  color: var(--ds-text-muted);
+}
 }
 
 .settings-remote-host-form {
