@@ -2391,6 +2391,8 @@ export function Sidebar({
         <SessionHoverCard
           key={sessionHoverCard.session.id}
           card={sessionHoverCard}
+          runningSessions={runningSessions}
+          pendingPermissions={pendingPermissions}
           refreshProject={refreshProject}
           onOpenSession={openSessionFromHover}
           keepVisible={keepSessionHoverCardVisible}

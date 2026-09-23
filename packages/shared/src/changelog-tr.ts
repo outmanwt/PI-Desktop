@@ -2,12 +2,18 @@ import type { ChangelogEntry } from "./changelog.js";
 
 export const trEntries: ChangelogEntry[] = [
   {
-    "version": "0.15.3",
-    "date": "2026-09-22",
+    "version": "0.15.6",
+    "date": "2026-09-23",
     "highlights": [
-      "Akıl yürütme kaydırıcısı tıklama, klavye seçimi ve sürüklemeyi akıcı biçimde canlandırır; azaltılmış hareket ayarını izler ve kaydetme başarısız olursa onaylanan değeri güvenle geri yükler.",
-      "Akıl yürütme izinin dolu kısmı başlangıç noktasını tamamen kapatır; böylece gri bir yarım nokta görünmez.",
-      "Bir akıl yürütme durağının veya etiketinin üzerine gelince ilgili etiket vurgulanır; dolu noktalar ve mevcut tutamaç görünümünü korur.",
+      "OpenAI ve ChatGPT/Codex model kataloglarında GPT-6 Astra, Sol ve Luna desteği eklenir.",
+    ],
+  },
+
+  {
+    "version": "0.15.5",
+    "date": "2026-09-23",
+    "highlights": [
+      "OpenAI ve ChatGPT/Codex model kataloglarında GPT-6 Astra, Sol ve Luna desteği eklenir.",
     ],
   },
 

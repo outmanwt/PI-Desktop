@@ -2,7 +2,7 @@ export const PROTOCOL_VERSION = 11 as const;
 export const SCHEMA_VERSION = 16 as const;
 export const APP_ID = "net.aiuo.pi-desktop";
 export const APP_NAME = "PI-Desktop";
-export const APP_VERSION = "0.15.3";
+export const APP_VERSION = "0.15.6";
 
 export const APP_MENU_COMMANDS = [
   "newTask",
@@ -187,7 +187,6 @@ export const IPC = {
      * crosses this channel.
      */
     remoteHostBootstrap: "pi-desktop/remoteHost/bootstrap",
-    remoteHostSshScan: "pi-desktop/remoteHost/sshScan",
     providersList: "pi-desktop/providers/list",
     providersReorder: "pi-desktop/providers/reorder",
     providersCreate: "pi-desktop/providers/create",
@@ -274,8 +273,6 @@ export const IPC = {
     skillImport: "pi-desktop/skill/import",
     skillImportScan: "pi-desktop/skill/importScan",
     skillImportRun: "pi-desktop/skill/importRun",
-    memoryImportScan: "pi-desktop/memory/importScan",
-    memoryImportRun: "pi-desktop/memory/importRun",
     skillMarketSearch: "pi-desktop/skill/market/search",
     skillMarketFetch: "pi-desktop/skill/market/fetch",
     skillUpdate: "pi-desktop/skill/update",

@@ -2,12 +2,18 @@ import type { ChangelogEntry } from "./changelog.js";
 
 export const frEntries: ChangelogEntry[] = [
   {
-    "version": "0.15.3",
-    "date": "2026-09-22",
+    "version": "0.15.6",
+    "date": "2026-09-23",
     "highlights": [
-      "Le curseur de raisonnement anime fluidement les clics, la sélection au clavier et le glissement, respecte la réduction des animations et restaure la valeur confirmée après un échec d’enregistrement.",
-      "La piste de raisonnement remplie couvre entièrement le point de départ, sans laisser apparaître un demi-point gris.",
-      "Le survol d’un point ou d’un libellé de raisonnement met en évidence le libellé correspondant, sans modifier les points remplis ni le curseur actuel.",
+      "Prend en charge GPT-6 Astra, Sol et Luna dans les catalogues de modèles OpenAI et ChatGPT/Codex.",
+    ],
+  },
+
+  {
+    "version": "0.15.5",
+    "date": "2026-09-23",
+    "highlights": [
+      "Prend en charge GPT-6 Astra, Sol et Luna dans les catalogues de modèles OpenAI et ChatGPT/Codex.",
     ],
   },
 
