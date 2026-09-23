@@ -1069,19 +1069,19 @@ task-candidate E2E 从请求工作树运行，但使用主工作区已经准备�
 
 #### E2E-091：外观卡通过可搜索主题和语言选择器选择
 
-- **先决条件**：应用程序在 macOS 上运行；测试工具可以切换英语、简体中文、繁体中文、土耳其语、德语、西班牙语和法语系统区域设置。
+- **先决条件**：应用程序在 macOS 上运行；测试工具可以切换英语、简体中文、繁体中文、土耳其语、德语、西班牙语、法语、韩语和巴西葡萄牙语系统区域设置。
 - **步骤**：
   1) 打开设置 → 常规。
   2) 打开外观卡中的主题选择器。确认系统、浅色、深色钉在顶部；选择深色并确认触发器显示「深色」，且 UI 切换为深色。
   3) 选择浅色并确认 UI 切换为浅色。
-  4) 打开语言行的可搜索选择器。确认「跟随系统」钉在顶部并显示检测到的本地名称，且列表按本地名称列出 English、简体中文、繁體中文、Türkçe、Deutsch、Español、Français。操作系统为简体中文时选择「跟随系统」会应用简体中文；切换为繁体中文系统时会应用繁体中文。
-  5) 依次选择 English、简体中文、繁體中文、Türkçe、Deutsch、Español 和 Français，确认外壳文案无需重新加载即可切换。确认 `zh-Hant` 和 `zh-HK` 解析为繁体中文，`de-DE` 解析为 Deutsch，`es-MX` 解析为 Español，`fr-CA` 解析为 Français。
+  4) 打开语言行的可搜索选择器。确认“跟随系统”钉在顶部并显示检测到的本地名称，且列表按本地名称列出 English、简体中文、繁體中文、Türkçe、Deutsch、Español、Français、한국어 和 Português (Brasil)。系统区域设置为简体中文时选择“跟随系统”会应用简体中文；系统区域设置为繁体中文时会应用繁体中文；系统区域设置为巴西葡萄牙语时会应用 pt-BR。
+  5) 依次选择 English、简体中文、繁體中文、Türkçe、Deutsch、Español、Français、한국어 和 Português (Brasil)，确认外壳文案无需重新加载即可切换。确认 `zh-Hant` 和 `zh-HK` 解析为繁体中文，`de-DE` 解析为 Deutsch，`es-MX` 解析为 Español，`fr-CA` 解析为 Français，`ko-KR` 解析为 한국어，`pt`、`pt-BR`、`pt_BR` 和 `pt-PT` 均解析为 pt-BR。
   6) 在语言搜索中输入本地名称或英文名称，确认不匹配的语言消失。在主题搜索中输入主题名称，确认不匹配的选项消失。
-- **预期**：主题和语言都是可搜索的选择行（不是卡片网格，也不是原生 select）；关闭时的触发器按当前文案收缩、不超过设置控件列且不溢出该行。主题列出系统、浅色、深色，插件主题在分隔线之后。「跟随系统」通过主进程 (`app.getLocale()`) 解析操作系统区域设置，安全地通过沙盒 preload 桥传递，并在菜单内嵌显示检测到的本地名称；zh-TW、土耳其语、德语、西班牙语和法语都是包含发版日志文案在内的完整外壳目录；切换选项会立即更新 UI，无需重新加载。
+- **预期**：主题和语言都是可搜索的选择行（不是卡片网格，也不是原生 select）；关闭时的触发器按当前文案收缩、不超过设置控件列且不溢出该行。主题列出系统、浅色、深色，插件主题在分隔线之后。“跟随系统”通过主进程 (`app.getLocale()`) 解析操作系统区域设置，安全地通过沙盒 preload 桥传递，并在菜单内嵌显示检测到的本地名称；zh-TW、土耳其语、德语、西班牙语、法语、韩语和巴西葡萄牙语都是包含发行说明文案在内的完整外壳目录；切换选项会立即更新 UI，无需重新加载。
 - **链接规格**：`04-ux/06-settings-ia.md`、`04-ux/02-i18n-english-first.md`
 - **验收**：A（核心壳）、H（本地化）
 - **里程碑**：M4
-- **状态**：已记录
+- **状态**：部分自动化（`scripts/e2e-settings-scroll.mjs` 覆盖 pt-BR 选择和界面切换）；完整多语言列表及 OS“跟随系统”矩阵仍为文档化验证。
 
 #### E2E-SETTINGS-ai-tab-pickers-use-in-app-menus：全局 AI 下拉使用应用内菜单
 
@@ -2797,18 +2797,8 @@ PI-Desktop 图标；两个表面都不会暴露库存 Electron 名称或图标�
 
 #### E2E-067B：已发货语言更新说明和完整变更日志对话框（D164/D345）
 
-- **先决条件**：发货的 `packages/shared` CHANGELOG 包含对齐的
-  `en`、`zh-CN` 和 `zh-TW` 稳定历史记录；可以切换产品语言。对于
-  紧凑的更新路径，使用打包或固定更新器状态
-  编目 `availableVersion`。
-- **步骤**： 1) 如果没有可用更新，请打开“设置”→“信息”并打开“发布”
-  笔记。 2) 检查完整的历史记录、当前版本标记、滚动、
-  以及通过密切控制、逃脱和背景来密切行为。 3）强制或等待
-  对于更新发现，因此状态为手动 `available`、应用内 `downloading`，
-  或 `downloaded`；检查环境横幅和设置更新行，然后
-  重新打开发行说明。 4）切换 UI 语言为 zh-CN，再切换为 zh-TW 并重新检查，
-  无需调用新的检查。 5) 在没有版本的情况下重复紧凑更新路径
-  从目录中。
+- **先决条件**：已发货的 `packages/shared` CHANGELOG 包含版本和条目数一致的 `en`、`zh-CN`、`zh-TW`、`ko` 和 `pt-BR` 稳定历史记录；可以切换产品语言。紧凑更新路径使用打包或固定更新器状态，并提供已收录的 `availableVersion`。
+- **步骤**：1) 没有可用更新时，打开“设置”→“信息”→“发行说明”。2) 检查完整历史、当前版本标记、滚动和关闭方式（关闭按钮、Escape、点击遮罩层）。3) 触发或等待更新检查进入手动 `available`、应用内 `downloading` 或 `downloaded` 状态；检查浮动横幅和设置中的“更新”行，然后重新打开发行说明。4) 将 UI 语言依次切换为 zh-CN、zh-TW、ko 和 pt-BR 并复核，无需重新检查更新。5) 使用目录中不存在的版本重复紧凑更新路径。
 - **预期**：`UpdateState.releaseNotes` 是普通的多线产品
   Main 从已发货语言目录中选择的亮点 - 从来都不是
   渲染器提供的 URL。两个表面均显示本地化的“新增内容”块
@@ -8849,3 +8839,19 @@ the latest destination. These assertions measure work counts, not device FPS.
 `node --test apps/desktop/test/session-transcript-empty-read.test.mjs`、
 `node --test apps/desktop/test/plugin-timeout-budgets.test.mjs`、
 `pnpm --filter @pi-desktop/shared test`、`pnpm --filter @pi-desktop/host-runtime test`。
+
+## E2E-PROVIDER-endpoint-guidance-and-search
+
+- **前提：** 隔离 Electron/Chromium、真实配置表单、合成响应，无真实密钥或服务。
+- **步骤：** 打开已有 DeepSeek、xAI、旧 OpenAI 服务，直接勾选搜索、取消、重开、
+  勾选并保存、重开后取消勾选并保存；应用中转站完整请求地址的格式建议。
+- **预期：** 一个服务入口、一个搜索开关；没有额外搜索预设或切换接口按钮。
+  只保存模型搜索选项，地址、协议、名称、密钥及其他模型配置保持不变；取消不写入。
+  已保存格式优先于域名预设，中转站建议不改变来源。
+- **规格：** 03-runtime/12、03-runtime/11、ADR 0297 官方路由修订。
+- **验收：** 中英文及原有自定义/OAuth 路径通过；真实适配器验证开关控制的请求路径、
+  凭据和工具。DeepSeek 同一会话关闭→开启→关闭搜索后仍能继续，保留文本，
+  不向 Completions 重放搜索加密数据。
+- **里程碑：** 提供商配置维护。
+- **状态：** `pnpm test:e2e:provider-api-style`、`official-native-search.test.ts`；
+  共享路由测试覆盖伪装域名、不安全地址和未知中转站。未验证线上服务或 Host/SQLite 保存。
