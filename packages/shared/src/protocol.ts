@@ -187,6 +187,7 @@ export const IPC = {
      * crosses this channel.
      */
     remoteHostBootstrap: "pi-desktop/remoteHost/bootstrap",
+    remoteHostSshScan: "pi-desktop/remoteHost/sshScan",
     providersList: "pi-desktop/providers/list",
     providersReorder: "pi-desktop/providers/reorder",
     providersCreate: "pi-desktop/providers/create",
@@ -273,6 +274,8 @@ export const IPC = {
     skillImport: "pi-desktop/skill/import",
     skillImportScan: "pi-desktop/skill/importScan",
     skillImportRun: "pi-desktop/skill/importRun",
+    memoryImportScan: "pi-desktop/memory/importScan",
+    memoryImportRun: "pi-desktop/memory/importRun",
     skillMarketSearch: "pi-desktop/skill/market/search",
     skillMarketFetch: "pi-desktop/skill/market/fetch",
     skillUpdate: "pi-desktop/skill/update",
