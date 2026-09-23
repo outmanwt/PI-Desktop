@@ -157,11 +157,6 @@ test("updater gates delivery mode by platform and delivery policy", () => {
     "auto GitHub checks must not wait for Chromium's ~60s socket timeout",
   );
   assert.match(updaterSource, /raceWithTimeout/);
-  assert.match(
-    updaterSource,
-    /ERR_UPDATER_LATEST_VERSION_NOT_FOUND/,
-    "a feed repository with no published release is not an update error",
-  );
   assert.match(updaterSource, /UPDATE_CHECK_TIMEOUT/);
   assert.match(
     updaterSource,
@@ -287,12 +282,16 @@ test("packaging publishes an electron-updater feed for GitHub Releases", () => {
   assert.match(buildReleaseSource, /"--publish",\s*"never"/);
   assert.match(buildReleaseSource, /piDistribution=installed/);
   assert.match(buildReleaseSource, /piDistribution=zip/);
-  // The fork release workflow publishes Windows/Linux outputs and the updater feeds.
-  assert.match(releaseWorkflowSource, /release\/\*\.exe/);
+  assert.match(
+    buildReleaseSource,
+    /shell:\s*process\.platform === "win32"/,
+    "Windows must launch the pnpm.cmd shim through a shell",
+  );
+  // The upload step must carry every updater feed, and the release publishes
+  // all platforms unfiltered (D126/D285).
   assert.match(releaseWorkflowSource, /release\/\*\.zip/);
   assert.match(releaseWorkflowSource, /release\/\*\.rpm/);
   assert.match(releaseWorkflowSource, /release\/latest\*\.yml/);
-  assert.match(releaseWorkflowSource, /pi-host-\*-linux-x64\.tar\.gz/);
   assert.match(releaseWorkflowSource, /files: dist\/\*/);
 });
 

@@ -435,12 +435,14 @@ task-candidate E2E 从请求工作树运行，但使用主工作区已经准备�
   下一个模型回合。对于用户可见的 HTML 可交付成果，`BrowserPreview` 是
   创建或第一次有意义的视觉编辑后调用一次，然后重复使用
   在页面优化时通过实时重新加载。已生成，仅供测试，并且
-  非可视 HTML 文件不会触发预览调用。加载的集合不
-  泄漏到下一个提示的第一个请求中。工具激活标记幸存
-  在不授予主机权限或工作区逃逸的情况下重新加载脚本。
+  非可视 HTML 文件不会触发预览调用。第二个提示的第一个请求可以恢复
+  有效上下文中仍存在的成功激活标记，包括已激活但尚未调用的工具。新结果
+  使用 `details.addedToolNames`，历史 `details.activated` 和顶层
+  `addedToolNames` 也可读取；失败、中断或缺少结果的行不会恢复工具。目录
+  或模式变化会阻止恢复，且恢复不会授予主机权限或工作区逃逸。
 - **链接规格**：`03-runtime/02-agent-runtime.md` §7.1，
-  `03-runtime/03-tools-and-permissions.md` §2.1、ADR 0048、
-  `08-meta/decisions-log.md` (D185)
+  `03-runtime/03-tools-and-permissions.md` §2.1、ADR 0048、ADR 0225、
+  `08-meta/decisions-log.md` (D185、D400)
 - **验收**：C（第一轮和流）+ E（工具执行）
 - **里程碑**：M5
 - **状态**：单位覆盖（`agent-runtime` 延迟工具测试）；真人模特
@@ -5282,7 +5284,7 @@ eleven-tool-round desktop paths are verified by
 | C / G / Quality — Plugins navigation | E2E-NAV-plugins-button-goes-back |
 | C / D / Quality — 侧边栏行状态 | E2E-LAYOUT-sidebar-row-states |
 | A / C / Quality — 侧栏材质与设置返回 | E2E-LAYOUT-sidebar-settings |
-| A / H / Quality — 渲染进程崩溃恢复 | E2E-RUNTIME-renderer-crash-recovery |
+| A / H / Quality — 渲染器进程崩溃恢复 | E2E-RUNTIME-renderer-crash-recovery |
 | B / F / Security — 提供商复制 | E2E-PROVIDER-copy-config-without-credentials |
 | B / F / Quality — 已选模型顺序 | E2E-MODEL-selected-order-persists |
 | A — 应用程序启动 | E2E-001、E2E-002、E2E-003、E2E-004、E2E-067、E2E-076、E2E-079、E2E-092、E2E-097、E2E-143、E2E-150、E2E-168、E2E-204、E2E-217 |
@@ -7912,14 +7914,13 @@ runner 会在运行时的隔离临时目录中生成六个插件形态 fixture�
 
 - **前提条件**：构建后的桌面应用、隔离宿主与 profile，聊天侧栏可见。
 - **步骤**：在深浅主题及 darwin/win32/linux CSS 分支比较主侧栏与设置导航的颜色、
-  背景图、尺寸和位置，检查祖先透明度及右侧不透明背景；进入设置前保留当前 .chat-surface DOM 节点。设置打开期间确认聊天外壳处于 hidden、inert
-  状态且仍包含该已挂载节点。通过“返回应用”返回并确认显示同一节点，同时记录侧栏挂载、宽度及
+  背景图、尺寸和位置，检查祖先透明度及右侧不透明背景；返回时记录挂载、宽度及
   animationstart。重复快速往返、原本折叠、入场被设置打断和减少动态效果场景，
   确认真实展开仍有动画。另验证旧主题色、标准侧栏色及背景图覆盖。
 - **预期**：两处导航共用材质，设置导航和外壳不播入场，只有不透明内容区内部动画。
   macOS 下侧栏祖先透明，右侧内容和顶部条不透明。返回时展开侧栏始终为 275px，
   无 sidebar-in；原本折叠则保持不显示。真实展开仍有动画与宽度变化；旧主题颜色
-  作为共享回退保留，显式标准 token 优先。隐藏聊天表面拥有的传送门图层在设置打开期间保持隐藏；共享的应用级搜索、Toast 与扩展提示图层依然可用。
+  作为共享回退保留，显式标准 token 优先。
 - **链接规格**：`04-ux/06-settings-ia.md`、`04-ux/07-ui-design-system.md`、
   `04-ux/08-component-spec.md` §1.4、§1.7
 - **验收**：A、C、品质
@@ -7929,17 +7930,7 @@ runner 会在运行时的隔离临时目录中生成六个插件形态 fixture�
   防止原生窗口被遮挡后 Chromium 冻结动画与悬停输入。平台和主题为渲染层模拟，
   不等同于原生 Windows/Linux 或系统材质/主题验证。可通过 `PI_DESKTOP_LAYOUT_ARTIFACT_DIR`
   保存渲染截图。`sidebar-settings-return.test.mjs` 覆盖首次显示、两种中断阶段、
-  隐藏时状态变化和反转。CDP 布局旅程验证设置在往返过程中保留相同的聊天表面节点。`settings-dialog-overlay.test.mjs` 覆盖全窗口浮层合约；`pnpm test:e2e:theme-surfaces` 在真实 Chromium 验证不透明回退及旧主题覆盖。
-
-#### E2E-RUNTIME-renderer-crash-recovery
-
-- **前提条件**：构建后的桌面应用具有隔离 profile，主窗口处于聊天界面，且 E2E 测试治具已启用 CDP。
-- **步骤**：设置仅渲染层的哨兵标记，触发 `Page.crash`，如果渲染进程的 CDP 连接断开则重新连接到现有页面目标。等待聊天表面恢复并检查隔离的诊断日志。
-- **预期**：渲染器文档在同一应用窗口中重建，聊天表面恢复可用，并且 `renderer.process.gone` 记录退出原因、退出码及重新加载决策。应用不会打开第二个窗口。
-- **链接规格**：`03-runtime/07-process-model.md`、`03-runtime/09-logging-and-observability.md`
-- **验收**：A、H、品质
-- **里程碑**：Post-M6 desktop shell maintenance
-- **状态**：由 `pnpm test:e2e:layout` 通过 CDP `Page.crash` 自动化；确定性测试 `renderer-recovery.test.mjs` 覆盖正常退出、已接受的关闭、应用关闭、陈旧窗口、已销毁内容及未来的 Electron 退出原因。
+  隐藏时状态变化和反转；`pnpm test:e2e:theme-surfaces` 在真实 Chromium 验证不透明回退及旧主题覆盖。
 
 #### E2E-AGENT-alt-enter-steers-active-turn：Enter 排队跟进，Alt+Enter 向当前回合补充指令
 
@@ -8822,4 +8813,3 @@ the latest destination. These assertions measure work counts, not device FPS.
 `node --test apps/desktop/test/session-transcript-empty-read.test.mjs`、
 `node --test apps/desktop/test/plugin-timeout-budgets.test.mjs`、
 `pnpm --filter @pi-desktop/shared test`、`pnpm --filter @pi-desktop/host-runtime test`。
-

@@ -2,12 +2,18 @@ import type { ChangelogEntry } from "./changelog.js";
 
 export const deEntries: ChangelogEntry[] = [
   {
-    "version": "0.15.3",
-    "date": "2026-09-22",
+    "version": "0.15.6",
+    "date": "2026-09-23",
     "highlights": [
-      "Der Reasoning-Slider animiert Klicks, Tastaturauswahl und Ziehen flüssig, berücksichtigt reduzierte Bewegung und stellt nach fehlgeschlagenem Speichern sicher den bestätigten Wert wieder her.",
-      "Die gefüllte Reasoning-Leiste deckt den Startpunkt vollständig ab, sodass am Anfang kein grauer Halbpunkt sichtbar bleibt.",
-      "Beim Überfahren eines Reasoning-Punkts oder -Labels wird das passende Label hervorgehoben; gefüllte Punkte und der aktuelle Regler bleiben unverändert.",
+      "Unterstützung für GPT-6 Astra, Sol und Luna in den OpenAI- und ChatGPT/Codex-Modellkatalogen.",
+    ],
+  },
+
+  {
+    "version": "0.15.5",
+    "date": "2026-09-23",
+    "highlights": [
+      "Unterstützung für GPT-6 Astra, Sol und Luna in den OpenAI- und ChatGPT/Codex-Modellkatalogen.",
     ],
   },
 

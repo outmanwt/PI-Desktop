@@ -66,14 +66,38 @@ jobs:
             theirs=(
               README.md
               README.zh-CN.md
+              Cargo.lock
+              Cargo.toml
               apps/desktop/package.json
               apps/desktop/electron/main/updater.ts
+              apps/desktop/resources/models.dev/api.json
               apps/desktop/test/auto-update.test.mjs
               apps/desktop/test/remote-host-bootstrap-script.test.mjs
               apps/desktop/test/remote-host-pi-host-release.test.mjs
               apps/desktop/test/remote-host-ssh-bootstrap.test.mjs
+              apps/pi-host/package.json
+              docs/package.json
+              docs/zh-CN/spec/06-delivery/04-e2e-test-plan.md
+              package.json
+              packages/agent-host/package.json
+              packages/agent-runtime/package.json
+              packages/host-runtime/package.json
+              packages/i18n/package.json
+              packages/plugin-devkit/package.json
+              packages/plugin-sdk/package.json
+              packages/racp/package.json
+              packages/shared/package.json
+              packages/shared/src/changelog-de.ts
+              packages/shared/src/changelog-es.ts
+              packages/shared/src/changelog-fr.ts
+              packages/shared/src/changelog-ko.ts
+              packages/shared/src/changelog-tr.ts
+              packages/shared/src/changelog.test.ts
+              packages/shared/src/changelog.ts
               packages/shared/src/github-feedback.test.ts
               packages/shared/src/github-feedback.ts
+              packages/shared/src/protocol.ts
+              scripts/build-desktop-release.mjs
             )
             conflicts="$(git diff --name-only --diff-filter=U)"
             unexpected=""

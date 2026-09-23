@@ -2,12 +2,18 @@ import type { ChangelogEntry } from "./changelog.js";
 
 export const esEntries: ChangelogEntry[] = [
   {
-    "version": "0.15.3",
-    "date": "2026-09-22",
+    "version": "0.15.6",
+    "date": "2026-09-23",
     "highlights": [
-      "El deslizador de razonamiento anima con fluidez los clics, la selección con teclado y el arrastre, respeta el movimiento reducido y recupera el valor confirmado si falla el guardado.",
-      "La pista de razonamiento cubre por completo el punto inicial, para que el extremo relleno no deje un semipunto gris visible.",
-      "Al pasar sobre un punto o etiqueta de razonamiento se resalta la etiqueta correspondiente, mientras los puntos rellenos y el control actual mantienen su aspecto.",
+      "Añade compatibilidad con GPT-6 Astra, Sol y Luna en los catálogos de modelos de OpenAI y ChatGPT/Codex.",
+    ],
+  },
+
+  {
+    "version": "0.15.5",
+    "date": "2026-09-23",
+    "highlights": [
+      "Añade compatibilidad con GPT-6 Astra, Sol y Luna en los catálogos de modelos de OpenAI y ChatGPT/Codex.",
     ],
   },
 

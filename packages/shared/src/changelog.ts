@@ -29,12 +29,18 @@ export type ChangelogEntry = {
 
 const enEntries: ChangelogEntry[] = [
   {
-    version: "0.15.3",
-    date: "2026-09-22",
+    version: "0.15.6",
+    date: "2026-09-23",
     highlights: [
-      "Animate the reasoning slider smoothly for clicks, keyboard selection, and dragging, with reduced-motion support and safe recovery after failed saves.",
-      "Make the reasoning track cover the starting dot completely, so its filled cap no longer leaves a gray half-dot.",
-      "Highlight the matching reasoning label on hover while keeping filled dots and the current thumb unchanged.",
+      "Support GPT-6 Astra, Sol, and Luna across the OpenAI and ChatGPT/Codex model catalogs.",
+    ],
+  },
+
+  {
+    version: "0.15.5",
+    date: "2026-09-23",
+    highlights: [
+      "Support GPT-6 Astra, Sol, and Luna across the OpenAI and ChatGPT/Codex model catalogs.",
     ],
   },
 
@@ -835,12 +841,18 @@ const enEntries: ChangelogEntry[] = [
 
 const zhCNEntries: ChangelogEntry[] = [
   {
-    version: "0.15.3",
-    date: "2026-09-22",
+    version: "0.15.6",
+    date: "2026-09-23",
     highlights: [
-      "推理滑块支持点击、键盘选择和拖动的平滑动画，遵循减少动效设置，并在保存失败后安全恢复。",
-      "让推理轨道完整覆盖起始圆点，填充端不再露出灰色半圆点。",
-      "悬停推理刻度或标签时高亮对应标签，同时保持已填充圆点和当前滑块外观不变。",
+      "支持 OpenAI 与 ChatGPT/Codex 模型目录中的 GPT-6 Astra、Sol 和 Luna。",
+    ],
+  },
+
+  {
+    version: "0.15.5",
+    date: "2026-09-23",
+    highlights: [
+      "支持 OpenAI 与 ChatGPT/Codex 模型目录中的 GPT-6 Astra、Sol 和 Luna。",
     ],
   },
 
@@ -1641,12 +1653,18 @@ const zhCNEntries: ChangelogEntry[] = [
 
 const zhTWEntries: ChangelogEntry[] = [
   {
-    version: "0.15.3",
-    date: "2026-09-22",
+    version: "0.15.6",
+    date: "2026-09-23",
     highlights: [
-      "推理滑桿支援點擊、鍵盤選擇與拖曳的平滑動畫，遵循減少動效設定，並在儲存失敗後安全復原。",
-      "讓推理軌道完整覆蓋起始圓點，填充端不再露出灰色半圓點。",
-      "游標停留在推理刻度或標籤上時高亮對應標籤，同時保持已填充圓點和目前滑塊外觀不變。",
+      "支援 OpenAI 與 ChatGPT/Codex 模型目錄中的 GPT-6 Astra、Sol 與 Luna。",
+    ],
+  },
+
+  {
+    version: "0.15.5",
+    date: "2026-09-23",
+    highlights: [
+      "支援 OpenAI 與 ChatGPT/Codex 模型目錄中的 GPT-6 Astra、Sol 與 Luna。",
     ],
   },
 
