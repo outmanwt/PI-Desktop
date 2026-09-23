@@ -84,7 +84,6 @@ pub struct StoredConfig {
     pub username: String,
     pub directory: String,
     pub device_label: String,
-    pub allow_insecure_http: bool,
     #[serde(default)]
     pub remote_mode: RemoteMode,
     #[serde(default = "new_device_id")]
@@ -366,13 +365,20 @@ fn webdav_password(st: &AppState, config: &StoredConfig) -> Result<String> {
         .ok_or_else(|| anyhow!("CONFIG_SYNC_LOCKED: WebDAV app password is not available"))
 }
 
+/// Build the WebDAV transport from a stored configuration.
+///
+/// The plaintext hop is no longer the per-endpoint acknowledgement the sync
+/// settings used to carry: `networkPolicy.mode` decides. `relaxed` keeps an
+/// `http` endpoint reachable when it is a loopback, `.local` or private LAN
+/// host, `strict` refuses plaintext outright, and a public `http` host is
+/// refused in both modes.
 fn transport_with_password(config: &StoredConfig, password: String) -> Result<WebDavTransport> {
     WebDavTransport::new(&WebDavConfig {
         endpoint: config.endpoint.clone(),
         username: config.username.clone(),
         password,
         directory: config.directory.clone(),
-        allow_insecure_http: config.allow_insecure_http,
+        allow_insecure_http: crate::network_policy::relaxed(),
         missing_object_status: config.missing_object_status,
     })
 }
@@ -647,7 +653,7 @@ pub fn public_state(st: &mut AppState) -> Result<Value> {
             username: None,
             directory: None,
             device_label: None,
-            allow_insecure_http: false,
+            allow_insecure_http: crate::network_policy::relaxed(),
             remote_mode: RemoteMode::Strict,
             categories: default_categories(),
             include_secrets: false,
@@ -742,7 +748,7 @@ pub fn public_state(st: &mut AppState) -> Result<Value> {
         username: Some(config_ref.username.clone()),
         directory: Some(config_ref.directory.clone()),
         device_label: Some(config_ref.device_label.clone()),
-        allow_insecure_http: config_ref.allow_insecure_http,
+        allow_insecure_http: crate::network_policy::relaxed(),
         remote_mode: config_ref.remote_mode,
         categories: config_ref.categories.clone(),
         include_secrets: config_ref.include_secrets,
@@ -842,11 +848,10 @@ fn config_from_input(
         username,
         directory,
         device_label,
-        allow_insecure_http: input
-            .get("allowInsecureHttp")
-            .and_then(Value::as_bool)
-            .or_else(|| existing.map(|value| value.allow_insecure_http))
-            .unwrap_or(false),
+        // `allowInsecureHttp` used to live here as a per-endpoint
+        // acknowledgement. The plaintext decision now belongs to
+        // `networkPolicy.mode`, so the key a stored configuration may still
+        // carry is ignored rather than rewritten.
         remote_mode,
         device_id: existing
             .map(|value| value.device_id.clone())
@@ -862,7 +867,7 @@ fn config_from_input(
             .or_else(|| existing.map(|value| value.automatic_sync))
             .unwrap_or(true),
         enabled: true,
-        paused: false,
+        paused: existing.is_some_and(|value| value.paused),
         vault_id: header.vault_id.clone(),
         vault_header: header,
         last_run_at: existing.and_then(|value| value.last_run_at.clone()),
@@ -902,11 +907,15 @@ fn parse_remote_mode(value: &str) -> Result<RemoteMode> {
 
 fn mark_error(config: &mut StoredConfig, error: &anyhow::Error) {
     let message = error.to_string();
-    config.last_error_code = if message.starts_with("CONFIG_SYNC_UNSUPPORTED") {
+    config.last_error_code = if message.starts_with("CONFIG_SYNC_UNSUPPORTED")
+        || message.starts_with("CONFIG_SYNC_REDIRECT")
+    {
         Some("UNSUPPORTED_SERVER".into())
     } else if message.starts_with("CONFIG_SYNC_CONFLICT") {
         Some("CONFLICT".into())
-    } else if message.starts_with("CONFIG_SYNC_CRYPTO")
+    } else if message.starts_with("CONFIG_SYNC_AUTH")
+        || message.starts_with("CONFIG_SYNC_PERMISSION")
+        || message.starts_with("CONFIG_SYNC_CRYPTO")
         || message.contains("401 Unauthorized")
         || message.contains("403 Forbidden")
         || message.contains("authentication")

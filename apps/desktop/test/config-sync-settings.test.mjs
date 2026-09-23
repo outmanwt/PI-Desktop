@@ -24,17 +24,19 @@ const progressModel = await read(
   "../src/features/settings/config-sync-progress.ts",
 );
 
-test("cloud sync is a searchable settings destination", () => {
-  assert.match(settingsPage, /tab === "sync" && <ConfigSyncPage \/>/);
+test("cloud sync rendering follows the settings visibility gate", () => {
+  assert.match(settingsPage, /tab === "sync" && !tabHidden && <ConfigSyncPage \/>/);
   assert.match(settingsIndex, /id: "sync"/);
+  assert.match(settingsIndex, /experimentalBadgeKey: "settings\.configSync\.experimental"/);
   assert.match(settingsIndex, /settings\.configSync\.connectionTitle/);
 });
 
 test("cloud sync keeps credentials and vault operations on the host boundary", () => {
   assert.match(syncPage, /api\.configSyncConfigure\(/);
   assert.match(syncPage, /setState\(await api\.configSyncSyncNow\(\)\)/);
-  assert.match(syncPage, /allowInsecureHttp/);
-  assert.match(syncPage, /settings\.configSync\.allowInsecureHttpWarning/);
+  // The plaintext opt-in is the network mode now, not a WebDAV switch: the page
+  // carries no per-endpoint HTTP acknowledgement of its own.
+  assert.doesNotMatch(syncPage, /allowInsecureHttp/);
   assert.match(syncPage, /settings\.configSync\.remoteMode/);
   assert.match(syncPage, /settings\.configSync\.appendOnlyWarning/);
   assert.match(syncPage, /settings\.configSync\.appendOnlyConfirm/);

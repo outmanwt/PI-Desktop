@@ -1173,6 +1173,7 @@ D193 和 D194。
 | D188 | 将聊天配置文件替换为 Plan 状态 | *（被 D189 取代）* **PI-Desktop 有 1 个 pi Agent 和 1 个产品选择器：`Agent | 计划`. Plan is that Agent after entering planning state, never a second Agent, planner model, planner service, or permission mode. Agent remains the default. Persisted sessions, app defaults, and scheduled values stored as `聊天` migrate to `计划`; the internal `页面 = “聊天”` route may remain as a conversation-surface detail. Plan exposes `读取`, `Glob`, `Grep`, `浏览器预览`, `Bash`, `CompactCon text`, and `ExitPlanMode`; it denies `Write`, `编辑`, plugin tools, and unknown tools. Plan retains permission-mode selection: Bash prompts under `ask` and `accept-edits`, and runs without confirmation under `auto`,因此 Plan 是计划意图而不是严格的只读安全配置文件。** | 历史预检查点Plan合约；保留解释取代链 |
 | D189 | Plan 检查点工件、批准和执行纪元 | **相同的 pi Agent 使用 `Agent | Plan`, with Agent default. Plan calls `SubmitPlan(标题, markdown, 问题)` as the only tool in its assistant batch. Rust host-core writes the submitted Markdown bytes unchanged to a new immutable unique file under `<workspaceRoot>/.pi/plan/*.md`; it stores the relative artifact path, SHA-256, and byte size together with structured title/question fields in the existing `plan_approvals` row. No title/question wrapper is added and no prior artifact is replaced. The approval surface displays title, question, an artifact opener, absolute expiry, and status, and offers only Approve or Reject. Approve requires an explicit `ask`, `accept-edits`, or `auto` permission mode, with Ask selected by default; Reject carries no mode. The approval expires at one absolute 30-minute deadline and uses `PLAN_APPROVAL_TIMEOUT`. The same `plan_approvals` row carries `execution_id` and `execution_state` through `queued → 运行 → 已完成 | 中断了`. A startup transaction marks prior pending approvals and queued/running execution states interrupted before serving RPC; no work is replayed. Pending interruption/rejection/expiry leaves the session Plan; an already-approved queued/running interruption leaves the session Agent. One active turn, idle-only configuration, and one pending approval/queued-or-running execution per session are enforced. Scheduled Plan is rejected before provider, artifact, or queue work with `PLAN_REQUIRES_INTERACTIVE_SESSION`。协议 v9 和存储模式 v10 携带的合约没有序列化的 process-epoch 字段。** | 不可变的主机工件保留提交的检查点，同时一个 approval/execution 行和启动进程栅栏可防止重新启动重播，而不会丢失已批准的 Agent 状态 |
 | D190 | 可选择的命令 shell 目录和执行标识 | **主机核心公开稳定的平台感知目录 ID：`windows-powershell`、`cmd`、`git-bash` 和 `bash`；平台目录仅包含该平台支持的 ID。 `defaultCommandShell` 保留在主机设置中，并且设置写入拒绝不可用或错误的平台 ID。如果持久选择稍后变得不可用，则有效 shell 会有意回退到第一个可用的平台 shell。 `Bash` 工具和 `tools.execute` 协议名称保持不变；每个回合都会固定有效的 shell ID 和方言，并且主机在使用 `COMMAND_SHELL_CHANGED` 生成之前拒绝过时的 ID/dialect。 Shell 标识是目录选择，而不是可执行路径哈希。 Bash 分别流式传输 stdout 和 stderr，使用强制的 60 秒默认超时和 1-300 秒覆盖，并且 cancellation/timeout 关闭完整的进程树。** | 用户可以选择命令语言，而无需增加协议工具，而平台验证、显式回退和转固定目录身份可保持执行的可预测性 |
+| D604 | 信任用户自己填写的网络端点 | **对用户填写的 URL 修订 ADR 0243 / 0245 / 0247；沿用 ADR 0142 / 0257 / 0300。用户自己在设置里填写的 URL——市场源、git 远端、MCP OAuth 端点、生成图片 URL——改按"用户端点"策略判定：回环、RFC1918、CGNAT、link-local、ULA、site-local 与 `.local` 都可达，明文 `http` 也可用。这一切由**一个**开关决定：`networkPolicy.mode`（`relaxed` / `strict`），**默认 `relaxed`**，并取代此前按界面分散的确认（明文开关、WebDAV 的 `allowInsecureHttp`、`networkProxy.allowFakeIp`），旧的 `allowInsecureUserEndpoints: false` 迁移为 `strict`；首次明文访问会弹一次告知（`insecureNoticeAcknowledged`）。第三方内容在任何模式下仍只允许公网并把校验过的地址固定到连接：registry 记录、目录正文、目录内部的文档 URL、以及每一次重定向目标。云元数据、`unspecified`、multicast、reserved、documentation 在任何输入上一律拒绝。默认代理绕过列表增加 `10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,169.254.0.0/16`。不改主机协议、不改存储 schema：`networkPolicy` 只是既有 app settings 里的一个字段，写入时校验。** | 拒绝用户自己填写的局域网地址并没有消除那次请求——它只是把同样的工作搬到应用旁边的 shell 或浏览器里，因此这条边界牺牲了功能，却没有阻止用户已经做出的决定。SSRF 风险在第三方内容那一侧，所以边界的那一半保持不变。见 ADR 0304。 |
 
 ## 2026-08-05 — 仅代理模式
 
@@ -2260,7 +2261,7 @@ D193 和 D194。
   空草稿显示「停止」，因此用户清空草稿即可露出立即停止操作。所属会话的
   `agent_end` 之后，渲染器通过既有的 `agent/prompt` 路径排出一项。「立即发送」
   把一项提升到队首并调用增量的 `pi-desktop/agent/stop`；sidecar 设置
-  pi-agent-core 的一次性 `shouldStopAfterTurn` 标志，于是当前的助手回复 / 工具
+  pi-agent-core 的一次性 `finishTurn` 决策，于是当前的助手回复 / 工具
   批次跑完、持久化回合正常关闭之后，优先的提示才开始。立即中止保持现有行为，
   且从不清空队列。
 - 这改变了渲染器状态归属并新增一个公开的 Electron IPC 通道，但不改动 host-core
@@ -3546,6 +3547,28 @@ D193 和 D194。
   仍走应用内下载并在退出时安装。数据仍在现有应用数据目录。便携版请求
   user 执行级别。
 - 参见 ADR 0197 与 E2E-211。
+
+## 2026-09-22 —— 信任用户自己填写的网络端点（D604）
+
+- 用户自己填写的端点——模型 base URL、MCP 服务器、市场源、git 远端、
+  生成图片 URL——可以解析到回环、RFC1918、CGNAT、link-local、ULA、
+  site-local 或 `.local`，也可以使用明文 `http`。这一切由**一个**主机侧
+  开关决定：`settings.networkPolicy.mode`（`relaxed` | `strict`），**默认
+  `relaxed`**；它取代了此前的三个确认开关（`networkProxy.allowFakeIp`、
+  `configSync.allowInsecureHttp`、自填明文开关），旧的
+  `allowInsecureUserEndpoints: false` 迁移为 `strict`。首次明文访问会弹一次
+  告知。`https` 访问局域网主机不需要开关。
+- 第三方内容不变。registry 记录、市场目录正文、目录内部的文档 URL、
+  以及每一次 HTTP 重定向目标，仍然只允许公网，并把校验过的地址固定到
+  连接上。共享客户端按每一跳的来源判定，只有用户发起请求的首跳可以是
+  `user`。
+- 云元数据（`169.254.169.254`、`100.100.100.200`、`fd00:ec2::254`、
+  `metadata.google.internal`、`metadata`、`instance-data`）、`unspecified`、
+  multicast、reserved、documentation 地址在任何输入上一律拒绝，包括用户
+  自己填写的字段。
+- 默认代理绕过列表增加私网段，配置了代理之后不再吞掉本机模型服务、NAS
+  或 MCP 端点。见 `05-security/01-security.md` §4.1/§4.2、
+  `04-ux/06-settings-ia.md` 与 ADR 0304。
 
 ## 2026-09-22 —— Windows 便携交付改为普通 ZIP（D603）
 
@@ -4892,3 +4915,31 @@ Markdown 源码，不是 `text/html` 负载；对禁用行内 HTML 的外部编�
   保留我们的拼写——而且当历史里没有这类调用时原样返回入参数组，常见路径不产生任何分配。
 - 只转换这三个名字。pi 的收集器不读其它名字，因此 `Grep`、`Glob`、`Bash`、插件与 MCP 名字
   保持我们注册的拼写，被摘要的文本只在 pi 真正消费该名字的地方发生变化。
+
+## 2026-09-22 —— 供应商请求头里的全角字符改为折成半角，而不是让回合失败（D621）
+
+- 自定义供应商请求头的值里带一个全角字符——输入法或全角排版的网页会把 `0` 打成 `０`
+  （U+FF10）——这个值进到 `Headers.set` 后让 undici 抛 `TypeError: Cannot convert
+  argument to a ByteString because the character at index N has a value of X which
+  is greater than 255`。请求根本没发出去，报错文本不指向任何用户能改的字段，而且只有
+  在自定义请求头功能上线之后建的行才会出现：同一份配置在旧版本上看起来完全正常。
+- 现在值会先把全角块（U+FF01–U+FF5E）与表意空格（U+3000）折成 ASCII，再修剪，再要求
+  只能是 HTAB、可打印 ASCII 或 Latin-1 补充区。这里刻意不走完整 NFKC：它会把半角片假名
+  改写成 U+30A2 并附带组合字符，照样发不出去。剩余情况由宿主持久化层以
+  `HEADERS_INVALID` 拒绝，并指出具体字符与字符下标；运行时遇到这类行直接丢弃而不是抛错，
+  与它已对 CR/LF 和保留头采取的做法一致。
+- 半角化在写入与读取两侧都做，因此规则生效前存下的值升级后可直接使用，不必等用户重新
+  输入。
+- 这条规则生效的三个边界刻意采用不同的失败方式：编辑器保存时拒绝无法发送的行并指出字符，
+  因为此时有用户在场可以改；读取已存映射时半角化并丢弃；收到同步 bundle 时在反序列化成
+  写入输入之前半角化并丢弃，因此旧版本对端（或规则前的备份）带着的某一行不会让整个
+  revision 失败。少了第三个边界，更严格的写入会把一行陈旧数据变成永久卡住的同步——
+  读取路径把它藏起来，写入路径却在它上面直接报错。
+- 供应商 API 密钥同样两侧折叠——密钥最终签进 `Authorization` 或 `x-api-key`，全角字符
+  在那里永远不可能是对的——但密钥不会在保存时被拒绝，因为有些认证方式并不把密钥放进请求
+  头（查询参数、SigV4 签名）。仍然不是 Latin-1 的密钥继续在发请求时报错；拒绝它会拦住
+  一个写入侧无从判断的保存。
+- 高级请求头编辑器会在行旁说明哪些值会被折成半角、哪些会被拒绝，避免用户只能从报错里
+  得知结果。一份规则、两处实现：`packages/shared/src/header-value.ts` 与
+  `crates/host-core/src/providers/validation.rs`。参见
+  `03-runtime/12-provider-config-schema.md`、ADR 0178、E2E-005G。
