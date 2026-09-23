@@ -77,6 +77,7 @@ jobs:
               apps/desktop/test/remote-host-ssh-bootstrap.test.mjs
               apps/pi-host/package.json
               docs/package.json
+              docs/project/unreleased.md
               docs/zh-CN/spec/06-delivery/04-e2e-test-plan.md
               package.json
               packages/agent-host/package.json
@@ -97,6 +98,7 @@ jobs:
               packages/shared/src/github-feedback.test.ts
               packages/shared/src/github-feedback.ts
               packages/shared/src/protocol.ts
+              pnpm-lock.yaml
               scripts/build-desktop-release.mjs
             )
             conflicts="$(git diff --name-only --diff-filter=U)"
