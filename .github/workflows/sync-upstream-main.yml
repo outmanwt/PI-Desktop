@@ -140,7 +140,7 @@ jobs:
           if git diff --quiet; then
             echo "Fork release-feed overrides already match."
           else
-            git add -A -- apps/desktop/package.json apps/desktop/electron/main/updater.ts apps/desktop/test/auto-update.test.mjs packages/shared/src/github-feedback.ts packages/shared/src/github-feedback.test.ts apps/desktop/test/remote-host-pi-host-release.test.mjs apps/desktop/test/remote-host-ssh-bootstrap.test.mjs apps/desktop/test/remote-host-bootstrap-script.test.mjs README.md README.zh-CN.md scripts/fork-overrides.mjs
+            git add -A -- apps/desktop/package.json apps/desktop/electron/main/updater.ts apps/desktop/test/auto-update.test.mjs packages/shared/src/github-feedback.ts packages/shared/src/github-feedback.test.ts packages/shared/src/protocol.ts apps/desktop/test/remote-host-pi-host-release.test.mjs apps/desktop/test/remote-host-ssh-bootstrap.test.mjs apps/desktop/test/remote-host-bootstrap-script.test.mjs README.md README.zh-CN.md scripts/fork-overrides.mjs
             git commit -m "chore(fork): preserve fork release feed"
           fi
 

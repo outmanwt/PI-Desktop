@@ -38,6 +38,22 @@ if (!sharedRepoPattern.test(shared)) {
 shared = shared.replace(sharedRepoPattern, `export const GITHUB_REPO = "${owner}/${repo}";`);
 await writeFile(sharedPath, shared, "utf8");
 
+const protocolPath = path.join(root, "packages/shared/src/protocol.ts");
+let protocol = await readFile(protocolPath, "utf8");
+if (!protocol.includes("remoteHostSshScan:")) {
+  protocol = protocol.replace(
+    'remoteHostBootstrap: "pi-desktop/remoteHost/bootstrap",',
+    'remoteHostBootstrap: "pi-desktop/remoteHost/bootstrap",\n    remoteHostSshScan: "pi-desktop/remoteHost/sshScan",',
+  );
+}
+if (!protocol.includes("memoryImportScan:")) {
+  protocol = protocol.replace(
+    'skillImportRun: "pi-desktop/skill/importRun",',
+    'skillImportRun: "pi-desktop/skill/importRun",\n    memoryImportScan: "pi-desktop/memory/importScan",\n    memoryImportRun: "pi-desktop/memory/importRun",',
+  );
+}
+await writeFile(protocolPath, protocol, "utf8");
+
 for (const relativePath of [
   "apps/desktop/test/remote-host-pi-host-release.test.mjs",
   "apps/desktop/test/remote-host-ssh-bootstrap.test.mjs",
