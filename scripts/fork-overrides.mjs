@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 
@@ -96,5 +96,59 @@ if (!test.includes(`pkg.build.publish[0].owner, "${owner}"`)) {
   throw new Error("Could not update the updater owner contract test");
 }
 await writeFile(testPath, test, "utf8");
+
+const localesDir = path.join(root, "packages/i18n/src/locales");
+try {
+  const localeDirs = await readdir(localesDir, { withFileTypes: true });
+  for (const entry of localeDirs) {
+    if (!entry.isDirectory()) continue;
+    const localeFile = path.join(localesDir, entry.name, "index.ts");
+    try {
+      let content = await readFile(localeFile, "utf8");
+      if (content.includes("remoteHosts: {") && !content.includes("sshProfiles:")) {
+        content = content.replace(
+          "remoteHosts: {",
+          `remoteHosts: {\n      sshProfiles: "SSH config",\n      scanningSsh: "Scanning…",\n      scanSsh: "Scan SSH config",\n      sshConnect: "Install & connect",\n      noSshProfiles: "No SSH host aliases found.",`,
+        );
+      }
+      if (!content.includes("importAgentScanSourceWorkBuddy:")) {
+        content = content.replace(
+          /importAgentScanSourceClaudeProject:\s*"[^"]*",/,
+          `importAgentScanSourceClaudeProject: "Claude project",\n    importAgentScanSourceWorkBuddy: "WorkBuddy",\n    settingsImportMemoryKeys: "Memory",\n    importMemoryDesc: "Import WorkBuddy Markdown memory into the selected project. Existing entries are preserved and duplicate content is skipped.",\n    importMemoryTarget: "Target project: {{path}}",\n    importMemoryFound: "Found {{count}} memory files",\n    importMemoryResult: "Memory import done: {{imported}} imported, {{skipped}} skipped, {{failed}} failed",\n    importMemorySourceWorkBuddy: "WorkBuddy",\n    importMemory: "Memory",`,
+        );
+      }
+      if (!content.includes("importSourceWorkBuddy:")) {
+        content = content.replace(
+          /importSourcePi:\s*"[^"]*",/,
+          `importSourcePi: "Pi",\n    importSourceWorkBuddy: "WorkBuddy",`,
+        );
+      }
+      await writeFile(localeFile, content, "utf8");
+    } catch {}
+  }
+} catch {}
+
+const remoteHostsPagePath = path.join(root, "apps/desktop/src/components/settings/RemoteHostsPage.tsx");
+try {
+  let content = await readFile(remoteHostsPagePath, "utf8");
+  let modified = false;
+  if (!content.includes('import { SshProfilesPanel } from "./SshProfilesPanel";')) {
+    content = content.replace(
+      'import { api } from "../../lib/api";',
+      'import { api } from "../../lib/api";\nimport { SshProfilesPanel } from "./SshProfilesPanel";',
+    );
+    modified = true;
+  }
+  if (!content.includes("<SshProfilesPanel onConnected={refresh} />")) {
+    content = content.replace(
+      '<section className="settings-card-block">',
+      '<SshProfilesPanel onConnected={refresh} />\n      <section className="settings-card-block">',
+    );
+    modified = true;
+  }
+  if (modified) {
+    await writeFile(remoteHostsPagePath, content, "utf8");
+  }
+} catch {}
 
 console.log(`Fork overrides applied: ${owner}/${repo}`);
