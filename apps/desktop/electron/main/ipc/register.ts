@@ -34,6 +34,7 @@ import { registerSpeechIpc } from "./speech-ipc";
 import { registerVoiceIpc } from "./voice-ipc";
 import type { IpcRegistrar } from "./types";
 import type { createTraySessions } from "../tray-sessions";
+import type { createTaskbarUnreadBadge } from "../taskbar-unread-badge";
 
 export type RegisterIpcDependencies = {
   isQuitting: () => boolean;
@@ -41,6 +42,7 @@ export type RegisterIpcDependencies = {
   getMainWindow: () => BrowserWindow | null;
   getHost: () => HostProcess | null;
   traySessions: ReturnType<typeof createTraySessions>;
+  taskbarUnreadBadge: ReturnType<typeof createTaskbarUnreadBadge>;
   getSidecar: () => AgentSidecar | null;
   getAgentHostBridge: () => AgentHostBridge | null;
   /**
@@ -125,6 +127,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getCloseBehavior,
     markMenuRendererReady,
     traySessions,
+    taskbarUnreadBadge,
     executeNativeMenuAction,
     scheduledRunsBySession,
     isDevelopmentBuild,
@@ -165,6 +168,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     const handler = async (...args: any[]) => {
       const result = await fn(...args);
       traySessions.observeInvoke(channel);
+      taskbarUnreadBadge.observeInvoke(channel);
       return result;
     };
     ipcHandlers.set(channel, handler);
@@ -264,6 +268,7 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     applyDeveloperMode,
     applyPreventScreenSleep,
     applyKeepAwakeWhileRunning,
+    applyUpdatePreference: (preference) => updater.setPreference(preference),
     resolveEffectiveCommandShell,
   });
   registerConfigSyncIpc({
@@ -327,7 +332,6 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     plugins,
     browserHost,
     clipboardHistory,
-    logger,
     recordPastedClipboardFiles,
     currentWorkspacePath,
     setCurrentWorkspacePath,
@@ -344,12 +348,6 @@ export function registerIpcHandlers(dependencies: RegisterIpcDependencies) {
     getNpmPath: () => readNpmPath(dataDir),
     setNpmPath: (path) => writeNpmPath(dataDir, path),
     importRoot: join(dataDir, "plugins", "imported"),
-    getImportedDescriptions: async () => {
-      const currentHost = getHost();
-      if (!currentHost) throw new Error("host unavailable");
-      const { plugins: registered } = await currentHost.call<{ plugins: import("@pi-desktop/shared").PluginSummary[] }>("plugins.list");
-      return registered.flatMap(plugin => plugin.description ? [plugin.description] : []);
-    },
     loadDevPlugin: async (path) => {
       const currentHost = getHost();
       if (!currentHost) throw new Error("host unavailable");

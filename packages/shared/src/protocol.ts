@@ -2,7 +2,7 @@ export const PROTOCOL_VERSION = 11 as const;
 export const SCHEMA_VERSION = 16 as const;
 export const APP_ID = "net.aiuo.pi-desktop";
 export const APP_NAME = "PI-Desktop";
-export const APP_VERSION = "0.15.6";
+export const APP_VERSION = "0.15.7-beta.1";
 
 export const APP_MENU_COMMANDS = [
   "newTask",
@@ -232,8 +232,6 @@ export const IPC = {
     providersOauthDelete: "pi-desktop/providers/oauth/delete",
     pluginList: "pi-desktop/plugin/list",
     /** Plugin-contributed agent extensions (D387/D388, ADR 0214). */
-    piSkillDiscover: "pi-desktop/plugin/discoverPiSkills",
-    piSkillImport: "pi-desktop/plugin/importPiSkills",
     pluginImportExtension: "pi-desktop/plugin/importExtension",
     extensionsCommandRun: "pi-desktop/extensions/commands/run",
     extensionsUiRespond: "pi-desktop/extensions/ui/respond",
