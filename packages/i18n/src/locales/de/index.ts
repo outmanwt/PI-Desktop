@@ -137,6 +137,7 @@ export const de = {
     "checkForUpdates": "Auf Updates prüfen",
     "buildUnknown": "Version unbekannt",
     "search": "Suche",
+    "actionWithShortcut": "{{action}} ({{shortcut}})",
     "temporarySessions": "Temporäre Chats",
     "newTemporarySession": "Neuer temporärer Chat",
     "noProjectSessions": "Nr Chats in diesem Projekt bisher",
@@ -1673,18 +1674,6 @@ sklm: {
     "notFound": "Projekt nicht gefunden",
     "noProjects": "Noch keine Projekte"
   },
-  "pulls": {
-    "title": "Pull-Anfragen",
-    "refresh": "Aktualisieren",
-    "emptyTitle": "Keine Pull-Anfragen",
-    "review": "Überprüfung mit Agent",
-    "filters": "Pull-Request-Filter",
-    "filterOpen": "Offen",
-    "filterDraft": "Entwurf",
-    "filterAll": "Alle",
-    "open": "Offen",
-    "draft": "Entwurf"
-  },
   "scheduled": {
     "description": "Wiederkehrende Agent-Aufgaben ausführen, solange PI-Desktop geöffnet ist.",
     "edit": "Aufgabe bearbeiten",
@@ -2433,7 +2422,7 @@ sklm: {
     "failedTitle": "{{sessionTitle}} benötigt Aufmerksamkeit",
     "failedBody": "Der Chat wurde nicht erfolgreich beendet.",
     "failedBodyWithCode": "Der Chat wurde mit dem Fehler {{code}} beendet.",
-    "askTitle": "{{sessionTitle}} benötigt Ihre Eingabe",
+    "askTitle": "Eine Frage braucht Ihre Antwort",
     "askBody": "{{question}}",
     "askBodyFallback": "Die Aufgabe erfordert Ihre Antwort, um fortzufahren.",
     "permissionTitle": "{{sessionTitle}} benötigt Tool-Genehmigung",
