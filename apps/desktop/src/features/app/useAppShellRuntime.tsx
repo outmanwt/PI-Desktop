@@ -49,6 +49,9 @@ export function useAppShellRuntime() {
   const ready = useAppStore((s) => s.ready);
   const page = useAppStore((s) => s.page);
   const activeSessionId = useAppStore((s) => s.activeSessionId);
+  const acknowledgeSessionOutcome = useAppStore(
+    (s) => s.acknowledgeSessionOutcome,
+  );
   const showToast = useAppStore((s) => s.showToast);
   const handleAgentEvent = useAppStore((s) => s.handleAgentEvent);
   const handlePlansChanged = useAppStore((s) => s.handlePlansChanged);
@@ -418,6 +421,19 @@ export function useAppShellRuntime() {
   }, [activeSessionId, page]);
 
   useEffect(() => {
+    const acknowledgeFocusedSession = () => {
+      if (!ready || page !== "chat" || !activeSessionId) return;
+      // Restoring the existing chat from the taskbar is a read action even
+      // when the active session did not change. Keep the host row and shell
+      // badge in sync with what the user can now see.
+      void acknowledgeSessionOutcome(activeSessionId).catch(() => undefined);
+    };
+
+    window.addEventListener("focus", acknowledgeFocusedSession);
+    return () => window.removeEventListener("focus", acknowledgeFocusedSession);
+  }, [acknowledgeSessionOutcome, activeSessionId, page, ready]);
+
+  useEffect(() => {
     if (!ready) return;
     void refreshPluginThemes();
     // Enabling, disabling or uninstalling a plugin changes which themes exist.
@@ -580,6 +596,7 @@ export function useAppShellRuntime() {
     });
     // Agent-driven HTML preview: surface the browser tab when the agent
     // opens a workspace file in the embedded browser (BrowserPreview tool).
+    const offBrowserState = api.onBrowserState((event) => useAppStore.getState().updateBrowserWorkPanelTab(event));
     const offBrowserPreview = api.onBrowserPreview((event) => {
       useAppStore
         .getState()
@@ -781,6 +798,7 @@ export function useAppShellRuntime() {
       offToast();
       offInsecureEndpoint();
       offBrowserPreview();
+      offBrowserState();
       offHostStatus();
       offNotificationChanged();
       offSessionsChanged();
