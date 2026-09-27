@@ -492,31 +492,19 @@ identify the platform validation still needed.
 - **Milestone**: M6+
 - **Status**: Opt-in debug lane; tag releases must satisfy E2E-196c.
 
-#### E2E-196b: Unsigned macOS packages expose first-launch guidance
+#### E2E-196b: macOS packages omit first-launch helper assets
 
-- **Preconditions**: A default unsigned macOS release has produced both DMG and
-  ZIP artifacts for at least one native architecture; a test macOS account can
-  copy an app into `/Applications` or `~/Applications`.
-- **Steps**: 1) Open the DMG and inspect its root and layout. 2) Confirm the
-  app and Applications link are the only items in the window. 3) Confirm the
-  DMG has no command helper and no `If app won't open, read this.txt`. 4) Inspect
-  the ZIP root without extracting the application contents and confirm it has
-  both `PI-Desktop-macOS-opening-help.txt` and the executable
-  `PI-Desktop-macOS-open.command`. 5) Read the note, move the app to
-  `/Applications`, and double-click the ZIP helper.
+- **Preconditions**: An unsigned macOS debug packaging run has produced DMG and
+  ZIP artifacts for at least one native architecture.
+- **Steps**: 1) Inspect the DMG and confirm the app and Applications link are
+  the only items in its window. 2) Inspect the ZIP root without extracting the
+  app and confirm neither `PI-Desktop-macOS-opening-help.txt` nor
+  `PI-Desktop-macOS-open.command` is present. 3) Confirm the app remains
+  installable from the ZIP.
 - **Expected**: The DMG contains the branded 720×440 background, the app, and
-  the Applications link only; it does not contain or expose the command helper
-  or the opening-help note. The ZIP contains the helper and the opening note at
-  its root. The note includes
-  `xattr -r -d com.apple.quarantine /Applications/PI-Desktop.app`, explains
-  that the fallback is only for a trusted unsigned artifact when macOS reports
-  that the app is damaged or does not open, and says signed/notarized builds do
-  not need it. The ZIP helper searches only `/Applications/PI-Desktop.app` and
-  `~/Applications/PI-Desktop.app`, removes only `com.apple.quarantine` when
-  present, and opens the app without `sudo` or an arbitrary path argument. It
-  validates `CFBundleIdentifier=net.aiuo.pi-desktop` before changing attributes.
-  The guidance does not claim that an unsigned artifact has passed Gatekeeper
-  qualification.
+  the Applications link only. The ZIP contains the app but neither first-launch
+  guidance asset. The same omission applies to signed and unsigned macOS
+  artifacts; signing, notarization, and updater behavior are unchanged.
 - **Specs linked**: `06-delivery/06-release-runbook.md`,
   `05-security/01-security.md`
 - **Acceptance**: Quality, Security
@@ -5289,6 +5277,10 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   with a customized `summonWindow` binding; confirm each profile keeps that
   binding on the single toggle row after restart and that `Cmd/Ctrl + Shift +
   W` registers nothing.
+  15) With an unsent composer draft in the main window, press unmodified
+  `Ctrl + R`; confirm the renderer remains loaded and the draft remains intact.
+  On macOS, confirm `Cmd + R` and the explicit View → Reload menu action are
+  unchanged.
 - **Expected**: Actions are grouped as Navigation, Agent, and Window with
   platform-native key labels; recording has visible focus and `Escape` cancels;
   the custom Search chord takes effect immediately, replaces the old chord,
@@ -5300,6 +5292,8 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   individual reset rejects an occupied default without changing either action;
   conflict-free individual and global reset restore the shared defaults; Keyboard shortcuts is
   its own Settings destination. Modifier-only and IME keydowns dispatch nothing,
+  an unmodified `Ctrl + R` is consumed before Chromium reloads the main renderer,
+  preserving the unsent draft; macOS `Cmd + R` and View → Reload remain available.
   and a held history chord traverses only once per physical press. The
   window-visibility key is one toggle on `Alt + Shift + W` — a visible, focused
   window hides to the tray, anything else shows and focuses — and it never
@@ -5312,9 +5306,10 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   `03-runtime/01-ipc-protocol.md`
 - **Acceptance**: F (settings persistence), Quality (keyboard accessibility)
 - **Milestone**: M5
-- **Status**: Unit-covered (`keyboard-shortcuts.test.ts`,
-  `settings-keyboard-shortcuts.test.mjs`, `window-toggle-shortcut.test.mjs`,
-  host settings RPC test); rendered scenario Draft
+- **Status**: Shortcut unit-covered (`keyboard-shortcuts.test.ts`,
+  `settings-keyboard-shortcuts.test.mjs`, `window-menu.test.mjs`,
+  `window-toggle-shortcut.test.mjs`); `test:e2e:boot` verifies the main-window
+  Ctrl+R input is consumed. The full rendered settings journey remains Draft.
 
 #### E2E-073a: Developer mode gates the developer-tools console
 
