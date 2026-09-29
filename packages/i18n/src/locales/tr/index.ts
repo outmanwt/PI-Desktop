@@ -1027,6 +1027,8 @@ sklm: {
     importAgentScanTransportHttp: "HTTP",
     imported: "İçe aktarıldı",
     skillImported: "{{name}} içe aktarıldı",
+    skillBatchImported: "{{count}} beceri klasörü içe aktarıldı",
+    skillBatchFailed: "{{count}} klasör içe aktarılamadı. İlk hata: {{first}}",
     skillsEmpty: "Bu klasörde beceri yok",
     subagentsEmpty: "Henüz kendi alt ajanınız yok",
     addMcp: "Ekle",
