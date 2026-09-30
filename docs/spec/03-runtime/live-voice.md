@@ -69,7 +69,11 @@ persisted settings:
    the visibility-gated chat and Composer subtree, so in-app navigation cannot
    hide the call controls.
    Playback blocking and errors, including playback-resume failure, are visible
-   directly in the bar instead of requiring Details. Non-terminal action or
+   directly in the bar instead of requiring Details. The bar pairs the
+   localized message with the verbatim `LIVE_*` error code, so a failure whose
+   code has no localized message is still attributable from a screenshot or
+   bug report; the raw reason behind that code never reaches a view and stays
+   in the redacted `provider` log instead. Non-terminal action or
    missing-work-binding warnings do not falsely say the call has stopped.
 4. **Details open:** an explicitly opened secondary surface contains the
    transient transcript, provider identity, and any scoped work actions and
@@ -125,6 +129,20 @@ uses the played cursor to cancel and truncate its current response. Ending
 stops all local tracks, playback and ports before releasing the lease.
 
 ## Settings and compatibility
+
+Voice is available in both development and packaged builds without developer
+mode. Its Experimental badge remains an availability caveat, not an access
+restriction. Live Voice remains off by default, and enabling the setting does
+not start microphone capture. Composer offers an Open settings action when
+setup or account recovery is needed. Cloud sync and Remote Hosts retain their
+separate development-only gates.
+
+Account-list loading, failure with explicit retry, and an empty compatible
+account list are distinct states. A loading failure never clears saved bindings.
+The settings page links to the existing Model configuration destination for
+account login and management. Call errors distinguish missing authentication,
+account access denial, unsupported protocol, network/rate limits and microphone
+failures without displaying provider response content or credentials.
 
 The Voice settings destination exposes only Live Voice: users can bind an
 existing compatible Provider, choose the next-call binding, and set model, voice
