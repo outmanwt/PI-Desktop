@@ -121,6 +121,7 @@ import type {
   TrustedExtensionStatusEvent,
   TrustedExtensionUiPrompt,
   TrustedExtensionUiPromptResponse,
+  SessionTodoSnapshot,
 } from "@pi-desktop/shared";
 import {
   defaultCommandShellForPlatform,
@@ -1532,6 +1533,14 @@ export const api = {
     if (!window.piDesktop?.on) return () => undefined;
     return window.piDesktop.on(IPC.event.plansChanged, (payload) =>
       listener(normalizePlansChangedEvent(payload)),
+    );
+  },
+  getTodos: (sessionId: string) =>
+    invoke<SessionTodoSnapshot>(IPC.invoke.todosGet, { sessionId }),
+  onTodosChanged: (listener: (snapshot: SessionTodoSnapshot) => void) => {
+    if (!window.piDesktop?.on) return () => undefined;
+    return window.piDesktop.on(IPC.event.todosChanged, (payload) =>
+      listener(payload as SessionTodoSnapshot),
     );
   },
   onOauthLogin: (listener: (event: OAuthLoginEvent) => void) => {
