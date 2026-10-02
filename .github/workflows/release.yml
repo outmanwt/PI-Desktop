@@ -79,8 +79,22 @@ jobs:
           - name: Linux x64
             os: ubuntu-22.04
             arch: x64
+            runner_arch: x86_64
             artifact: linux-x64
             platform: linux
+            feed: latest-linux.yml
+            dist: dist:linux
+          - name: Linux arm64
+            # GitHub's native arm64 runner packages the Electron app and the
+            # host-core sidecar at the same architecture; the `-arm` image
+            # keeps the glibc 2.35 floor the x64 lane documents
+            # (ubuntu-24.04-arm would raise it to 2.39).
+            os: ubuntu-22.04-arm
+            arch: arm64
+            runner_arch: aarch64
+            artifact: linux-arm64
+            platform: linux
+            feed: latest-linux-arm64.yml
             dist: dist:linux
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
@@ -90,6 +104,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Verify native runner architecture
+        # A mislabelled or emulated runner would wrap one architecture's
+        # Electron app around the other architecture's Rust sidecar. The
+        # Windows rows carry no `runner_arch` because electron-builder
+        # cross-builds Windows from any runner.
+        if: matrix.runner_arch
+        run: |
+          set -euo pipefail
+          actual_arch="$(uname -m)"
+          expected_arch="${{ matrix.runner_arch }}"
+          if [ "$actual_arch" != "$expected_arch" ]; then
+            echo "::error::Expected $expected_arch runner, got $actual_arch."
+            exit 1
+          fi
       - name: Compare tag with apps/desktop/package.json
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -146,7 +174,23 @@ jobs:
 
       - name: Export Linux ASAR release asset
         if: matrix.platform == 'linux'
-        run: node scripts/export-linux-asar.mjs
+        run: node scripts/export-linux-asar.mjs --arch ${{ matrix.arch }}
+
+      - name: Verify the Linux update feed
+        # electron-builder names the Linux feed `latest-linux.yml` for x64 and
+        # `latest-linux-<arch>.yml` for every other Linux architecture — the
+        # same names electron-updater requests on those architectures — so the
+        # two lanes cannot overwrite each other's feed when the publish job
+        # merges their artifacts.
+        if: matrix.platform == 'linux'
+        run: |
+          set -euo pipefail
+          feed="apps/desktop/release/${{ matrix.feed }}"
+          if [[ ! -f "$feed" ]]; then
+            echo "::error::Expected the Linux updater feed at $feed"
+            ls apps/desktop/release || true
+            exit 1
+          fi
 
       - name: Upload installer artifacts
         uses: actions/upload-artifact@v7
@@ -165,9 +209,24 @@ jobs:
             apps/desktop/release/latest*.yml
 
   pi-host-bundle:
-    name: Bundle pi-host (Linux x64)
+    name: Bundle pi-host (Linux ${{ matrix.arch }})
     needs: verify
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Every Linux platform the desktop release publishes. Keep this list
+          # in lockstep with the desktop build matrix above and with
+          # PUBLISHED_TARGETS in apps/desktop/electron/main/remote/pi-host-release.ts:
+          # a bundle the desktop refuses to install is dead weight, and a target
+          # the desktop offers without a bundle fails mid-download.
+          - arch: x64
+            os: ubuntu-22.04
+            runner_arch: x86_64
+          - arch: arm64
+            os: ubuntu-22.04-arm
+            runner_arch: aarch64
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     defaults:
       run:
@@ -183,6 +242,17 @@ jobs:
           APP_VERSION="$(node -p "require('./apps/desktop/package.json').version")"
           if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
             echo "::error::Tag v$TAG_VERSION does not match apps/desktop/package.json version $APP_VERSION."
+            exit 1
+          fi
+
+      - name: Verify native runner architecture
+        if: matrix.runner_arch
+        run: |
+          set -euo pipefail
+          actual_arch="$(uname -m)"
+          expected_arch="${{ matrix.runner_arch }}"
+          if [ "$actual_arch" != "$expected_arch" ]; then
+            echo "::error::Expected $expected_arch runner, got $actual_arch."
             exit 1
           fi
 
@@ -216,15 +286,19 @@ jobs:
         run: node scripts/check-linux-host-glibc.mjs target/release/pi-desktop-host-core
 
       - name: Assemble pi-host bundle
-        run: node apps/pi-host/scripts/bundle.mjs --platform linux --arch x64
+        run: node apps/pi-host/scripts/bundle.mjs --platform linux --arch ${{ matrix.arch }}
 
       - name: Archive bundle with checksum
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./apps/pi-host/package.json').version")"
-          name="pi-host-${VERSION}-linux-x64"
+          name="pi-host-${VERSION}-linux-${{ matrix.arch }}"
           out="apps/pi-host/dist-bundle"
-          test -d "$out/$name"
+          if [ ! -d "$out/$name" ]; then
+            echo "::error::expected bundle directory $out/$name"
+            ls -la "$out" || true
+            exit 1
+          fi
           tar -czf "$out/${name}.tar.gz" -C "$out" "$name"
           ( cd "$out" && sha256sum "${name}.tar.gz" > "${name}.tar.gz.sha256" )
           cat "$out/${name}.tar.gz.sha256"
@@ -232,12 +306,12 @@ jobs:
       - name: Upload pi-host bundle
         uses: actions/upload-artifact@v7
         with:
-          name: pi-host-linux-x64
+          name: pi-host-linux-${{ matrix.arch }}
           if-no-files-found: error
           compression-level: 0
           path: |
-            apps/pi-host/dist-bundle/pi-host-*-linux-x64.tar.gz
-            apps/pi-host/dist-bundle/pi-host-*-linux-x64.tar.gz.sha256
+            apps/pi-host/dist-bundle/pi-host-*-linux-${{ matrix.arch }}.tar.gz
+            apps/pi-host/dist-bundle/pi-host-*-linux-${{ matrix.arch }}.tar.gz.sha256
 
   publish:
     name: Publish GitHub Release

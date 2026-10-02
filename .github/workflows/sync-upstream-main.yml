@@ -62,6 +62,7 @@ jobs:
             ours=(
               .github/workflows/release.yml
               .github/workflows/sync-upstream-main.yml
+              apps/desktop/test/ci-workflow.test.mjs
             )
             theirs=(
               README.md
