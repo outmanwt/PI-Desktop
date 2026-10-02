@@ -44,7 +44,6 @@ import {
   customModelSeedBinding,
   type CustomModelLookupContext,
 } from "./model-custom-lookup";
-import { ModelsFetchErrorMessage } from "./ModelsFetchErrorMessage";
 import type { ProviderModelsState } from "./useProviderModels";
 import { useModelReorder } from "./useModelReorder";
 
@@ -246,14 +245,19 @@ export function ModelSelectionPanes({
   // The returned list is short and already local, so filtering is client-side:
   // no host search and no debounced IPC round trip.
   const visibleRows = useMemo(() => {
+    // The service pane follows a live answer. Configured-only rows remain in
+    // the chosen pane, including hand-typed IDs absent from discovery.
+    const availableRows = discovery.source === "remote"
+      ? rows.filter((row) => row.info && row.info.source !== "user")
+      : rows;
     const needle = modelQuery.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter(
+    if (!needle) return availableRows;
+    return availableRows.filter(
       (row) =>
         row.id.toLowerCase().includes(needle) ||
         row.displayName.toLowerCase().includes(needle),
     );
-  }, [modelQuery, rows]);
+  }, [modelQuery, rows, discovery.source]);
 
   const selected = useMemo(
     () => new Set(models.map((binding) => binding.id.toLowerCase())),
@@ -403,14 +407,17 @@ export function ModelSelectionPanes({
     if (!discovered?.info) void enrichCustomModel(binding);
   };
 
-  const fetchFailed = discovery.status === "error";
-  const emptyFetchError = fetchFailed && rows.length === 0;
+  // A failed probe leaves an empty pane: the pane says the list is missing and
+  // the toast says why, so the list no longer hosts a classified error box.
+  const emptyFetchError = discovery.status === "error" && rows.length === 0;
 
   const modelListBody =
     discovery.status === "idle" ? (
       <div className="provider-models-placeholder">{t("settings.modelsEmptyHint")}</div>
     ) : emptyFetchError ? (
-      <ModelsFetchErrorMessage error={discovery.error} variant="placeholder" />
+      <div className="provider-models-placeholder is-error">
+        {t("settings.modelsFetchFailed")}
+      </div>
     ) : rows.length === 0 ? (
       <div className="provider-models-placeholder">
         {discovery.status === "loading"
@@ -541,10 +548,6 @@ export function ModelSelectionPanes({
             />
           </div>
         </div>
-
-        {fetchFailed && !emptyFetchError ? (
-          <ModelsFetchErrorMessage error={discovery.error} variant="banner" />
-        ) : null}
 
         {modelListBody}
       </div>

@@ -24,13 +24,12 @@ import type {
   RemoteHostSshMetadata,
   RemoteHostSummary,
   RemoteHostTransport,
-  SessionSummary,
 } from "@pi-desktop/shared";
 import { assertSshArgument } from "../remote/ssh-transport.js";
 import { wsClientTransport } from "@pi-desktop/racp";
+import type { RacpEventEnvelope, RacpItemSummary, RacpSession } from "@pi-desktop/shared";
 import type { BackendRouter } from "../remote/backend-router.js";
-import { makeRemoteSessionId } from "../remote/backend-router.js";
-import { racpSessionToSummary } from "../remote/remote-transcript.js";
+import { makeRemoteSessionId, parseRemoteSessionId } from "../remote/backend-router.js";
 import { createRacpRemoteHostClient, exchangePairingToken, type RacpRemoteHostClient } from "../remote/racp-remote-host-client.js";
 import {
   createSshBootstrap,
@@ -68,10 +67,22 @@ export type BootRemoteHostsOptions = {
 
 export type { RemoteHostSummary };
 
+export type RemoteLiveSessionSummary = Pick<RacpSession, "id" | "title" | "mode" | "permissionMode" | "status" | "activeTurnId" | "workspaceLabel"> & {
+  source: "remote";
+  hostKey: string;
+  hostLabel: string;
+};
+
 export interface RemoteHostsBoot {
   /** Read registry, connect every host, register their sessions. Returns
    * the number of hosts that finished `open()` without throwing. */
   open(): Promise<number>;
+  /** Live session metadata from connected paired Hosts; no transcript is read. */
+  listSessions(): Promise<RemoteLiveSessionSummary[]>;
+  /** Bounded history from one exact remote session; used only after explicit consent. */
+  readHistory(sessionId: string, limit: number): Promise<RacpItemSummary[]>;
+  /** Observe existing RACP session events without opening another transport. */
+  subscribeSession(sessionId: string, listener: (envelope: RacpEventEnvelope) => void): (() => void) | null;
   /** Close every open connection. Idempotent; safe to call before `open`. */
   closeAll(): Promise<void>;
   /** Every paired host with its live connection state; safe from the renderer. */
@@ -88,8 +99,6 @@ export interface RemoteHostsBoot {
   removeHost(hostKey: string): Promise<void>;
   /** The underlying registry, exposed for pairing flows that write directly. */
   readonly registry: RemoteHostRegistry;
-  /** Query all online paired hosts for their durable sessions, tagged with host info. */
-  listSessions(): Promise<SessionSummary[]>;
 }
 
 /**
@@ -207,6 +216,7 @@ export function transportOf(record: RemoteHostRecord): RemoteHostTransport {
 
 type OpenHost = {
   hostKey: string;
+  label: string;
   adapter: RacpRemoteHostClient;
   connection: RemoteHostConnection;
   /** The URL this host is live on, which for an SSH host is the forward's. */
@@ -281,7 +291,7 @@ export function createRemoteHostsBoot(
         await adapter.close().catch(() => undefined);
         throw error;
       }
-      return { hostKey: record.hostKey, adapter, connection, url };
+      return { hostKey: record.hostKey, label: record.label, adapter, connection, url };
     } catch (error) {
       // The host is not online, so nothing needs this forward; drop it rather
       // than leave an idle ssh process behind.
@@ -392,6 +402,53 @@ export function createRemoteHostsBoot(
       const records = await registry.list();
       return records.map(summaryOf);
     },
+    async listSessions() {
+      const listed = await Promise.all(opened.map(async (host) => {
+        try {
+          const result = await host.adapter.client.request<{ sessions?: RacpSession[] }>("session/list");
+          return (result.sessions ?? []).flatMap((session): RemoteLiveSessionSummary[] =>
+            typeof session.id === "string" && session.id.trim()
+              ? [{
+                  id: makeRemoteSessionId(host.hostKey, session.id),
+                  title: typeof session.title === "string" ? session.title : "",
+                  mode: session.mode,
+                  permissionMode: session.permissionMode,
+                  status: session.status,
+                  ...(typeof session.activeTurnId === "string" ? { activeTurnId: session.activeTurnId } : {}),
+                  ...(typeof session.workspaceLabel === "string" ? { workspaceLabel: session.workspaceLabel } : {}),
+                  source: "remote",
+                  hostKey: host.hostKey,
+                  hostLabel: host.label,
+                }]
+              : [],
+          );
+        } catch (error) {
+          log("warn", `remote host ${host.hostKey} session list failed`, { error: String(error) });
+          return [];
+        }
+      }));
+      return listed.flat();
+    },
+    async readHistory(sessionId, limit) {
+      const parsed = parseRemoteSessionId(sessionId);
+      const host = parsed ? opened.find((item) => item.hostKey === parsed.hostKey) : undefined;
+      if (!parsed || !host) throw Object.assign(new Error("Remote session is unavailable"), { errorCode: "LIVE_WORK_SESSION_UNAVAILABLE" });
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 24) throw Object.assign(new Error("Remote history limit is invalid"), { errorCode: "INVALID_ARGUMENT" });
+      const result = await host.adapter.client.request<{ items?: RacpItemSummary[] }>("session/history", {
+        sessionId: parsed.hostSessionId,
+        limit,
+      });
+      return result.items ?? [];
+    },
+    subscribeSession(sessionId, listener) {
+      const parsed = parseRemoteSessionId(sessionId);
+      if (!parsed) return null;
+      const host = opened.find((item) => item.hostKey === parsed.hostKey);
+      if (!host) return null;
+      return host.adapter.client.subscribe((envelope) => {
+        if (envelope.scope === "session" && envelope.sessionId === parsed.hostSessionId) listener(envelope);
+      });
+    },
     addHost,
     async bootstrapHost(request) {
       const outcome = await bootstrap.bootstrap(request);
@@ -420,25 +477,6 @@ export function createRemoteHostsBoot(
       // A paired host that never came online still owns a tunnel slot.
       await tunnels.close(hostKey);
       await registry.remove(hostKey);
-    },
-    async listSessions() {
-      const records = await registry.list().catch(() => []);
-      const recordMap = new Map(records.map((r) => [r.hostKey, r]));
-      const all: SessionSummary[] = [];
-      for (const host of opened) {
-        const rec = recordMap.get(host.hostKey);
-        const sessions = await host.connection.listSessions();
-        for (const session of sessions) {
-          const remoteSessionId = makeRemoteSessionId(host.hostKey, session.id);
-          all.push(
-            racpSessionToSummary(remoteSessionId, session, 0, {
-              hostKey: host.hostKey,
-              hostLabel: rec?.label ?? host.hostKey,
-            }),
-          );
-        }
-      }
-      return all;
     },
   };
 }
