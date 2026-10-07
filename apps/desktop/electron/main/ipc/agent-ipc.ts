@@ -1,3 +1,4 @@
+import { expandMcpInvocation } from "../composer-mcp";
 import { IPC, ErrorCodes, compactionRecordId, findSkillMentions, isGlobalPermissionMode, isRpcTimeoutError, type AgentEventEnvelope, type AgentPromptRequest, type AgentSteerRequest, type UiMessage, type AgentQueuePushRequest, type AgentStopRequest, type AskToolResolution, type GlobalPermissionMode, type MessageUsage, type PendingInteractiveRequests, type PlanExecutionFinishStatus, type PlanResolutionResult, type PlanResolveRequest, type PromptEnhancementRequest, type SessionSummarizeTitleRequest, type VoiceOrigin, canonicalThinkingLevel, type ThinkingLevel } from "@pi-desktop/shared";
 import type { FinishTurn } from "../runtime/plans";
 import { expandSlashInvocation, enhancePromptDraft, summarizeSessionTitle, visionFromModelConfig, type ComposerTemplate, type RuntimeProviderConfig } from "@pi-desktop/agent-runtime";
@@ -287,8 +288,19 @@ export function registerAgentIpc({
     const context = await sidecar.call<{ projectPath?: string; supportsVision: boolean }>(
       "agent.steeringContext", { sessionId: req.sessionId, expectedTurnId: req.expectedTurnId },
     );
+    const mcpExpansion = /^\/mcp:\S/.test(req.content)
+      ? expandMcpInvocation(
+          req.content,
+          await composerCommandService.buildComposerCommands(context.projectPath ?? null),
+          Boolean(req.attachments?.length),
+        )
+      : null;
+    // The inline text the user's draft carried decides both what the message
+    // shows and where each image block sits in the prompt.
+    const steerContent = mcpExpansion?.expanded ?? req.content;
     const prepared = await preparePromptAttachments(
-      dataDir, req.sessionId, context.projectPath, req.attachments ?? [], context.supportsVision,
+      dataDir, req.sessionId, context.projectPath, req.attachments ?? [],
+      context.supportsVision, steerContent,
     );
     const session = await host.call<{ session?: { messages?: UiMessage[] } }>("session.get", {
       id: req.sessionId, messageLimit: 1,
@@ -296,7 +308,8 @@ export function registerAgentIpc({
     const message: UiMessage = {
       id: durableUserMessageId(req.messageId, session.session?.messages ?? []),
       role: "user",
-      content: req.content,
+      content: steerContent,
+      ...(mcpExpansion ? { command: mcpExpansion.command } : {}),
       status: "complete",
       createdAt: new Date().toISOString(),
       steering: true,
@@ -307,10 +320,12 @@ export function registerAgentIpc({
     // never turn into a normal prompt or alter the next turn's configuration.
     return sidecar.call<{ accepted: boolean; turnId: string }>("agent.steer", {
       sessionId: req.sessionId, expectedTurnId: req.expectedTurnId, message,
-      content: appendPromptFallbackPaths(req.content, prepared),
+      content: appendPromptFallbackPaths(steerContent, prepared),
+      ...(mcpExpansion ? { mcpServerIds: mcpExpansion.mcpServerIds, mcpToolNames: mcpExpansion.mcpToolNames } : {}),
       attachments: prepared.filter((attachment) => attachment.inlineData).map((attachment) => ({
         path: attachment.message.ref, name: attachment.message.name, kind: attachment.message.kind,
         mimeType: attachment.message.mimeType, size: attachment.message.size, data: attachment.inlineData,
+        ...(attachment.message.inlinePath ? { inlinePath: attachment.message.inlinePath } : {}),
       })),
     });
   });
@@ -319,6 +334,8 @@ export function registerAgentIpc({
     if (!sidecar) throw new Error("sidecar unavailable");
     const voiceOrigin = parseVoiceOrigin(req.voiceOrigin);
     if (req.sessionId.startsWith("native-pi:")) {
+      // Desktop-managed MCP servers are not installed in native Pi sessions.
+      if (/^\/mcp:\S/.test(req.content)) expandMcpInvocation(req.content, []);
       if (voiceOrigin) {
         throw Object.assign(new Error("Live Voice work is unsupported for native Pi sessions"), {
           errorCode: "NATIVE_PI_UNSUPPORTED",
@@ -362,6 +379,18 @@ export function registerAgentIpc({
         errorCode: ErrorCodes.NOT_FOUND,
       });
     }
+    // Validate explicit MCP selection before a turn or history replacement.
+    // Use the session's project, never the currently focused renderer project.
+    const mcpExpansion = !sessionMessage && /^\/mcp:\S/.test(req.content)
+      ? expandMcpInvocation(
+          req.content,
+          await composerCommandService.buildComposerCommands(
+            typeof session.projectPath === "string" ? session.projectPath.trim() || null : null,
+          ),
+          Boolean(req.attachments?.length),
+        )
+      : null;
+
     const truncateFromMessageId =
       typeof req.truncateFromMessageId === "string"
         ? req.truncateFromMessageId.trim()
@@ -468,10 +497,10 @@ export function registerAgentIpc({
     // explicit, while the typed form remains the visible transcript chip.
     // Builtin/plugin slash aliases never reach this channel, and unknown
     // /names stay literal text.
-    let promptContent = sessionMessage?.content ?? req.content;
-    let slashCommand: string | undefined;
+    let promptContent = mcpExpansion?.expanded ?? sessionMessage?.content ?? req.content;
+    let slashCommand: string | undefined = mcpExpansion?.command;
     let skillMentions: UiMessage["skillMentions"];
-    if (!sessionMessage && /(^|\s)\/\S/.test(req.content)) {
+    if (!sessionMessage && !mcpExpansion && /(^|\s)\/\S/.test(req.content)) {
       try {
         const root = await optionalWorkspaceRoot();
         const commandEnd = req.content.search(/\s/);
@@ -536,6 +565,9 @@ export function registerAgentIpc({
           : undefined,
         req.attachments ?? [],
         supportsVision,
+        // The text the durable message will hold: an image chip the Composer
+        // left inline keeps its place in the prompt and in the transcript.
+        promptContent,
       );
     } catch (error) {
       await finishTurn(req.sessionId, "error", (error as any)?.errorCode, {
@@ -641,6 +673,7 @@ export function registerAgentIpc({
           // Rust. The runtime must not replace it with a provider-local UUID.
           turnId: durableTurnId,
           content: modelContent,
+          ...(mcpExpansion ? { mcpServerIds: mcpExpansion.mcpServerIds, mcpToolNames: mcpExpansion.mcpToolNames } : {}),
           ...(sessionMessage ? { sessionMessage: sessionMessage.origin } : {}),
           attachments: [
             ...preparedAttachments
@@ -652,6 +685,9 @@ export function registerAgentIpc({
                 mimeType: attachment.message.mimeType,
                 size: attachment.message.size,
                 data: attachment.inlineData,
+                ...(attachment.message.inlinePath
+                  ? { inlinePath: attachment.message.inlinePath }
+                  : {}),
               })),
             // A referenced conversation crosses the sidecar as quoted text for
             // this turn; the durable record above keeps it for later turns.

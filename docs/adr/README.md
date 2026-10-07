@@ -20,6 +20,7 @@ Each ADR includes:
 
 | ID | Title | Status |
 |---|---|---|
+| composer-mcp-invocations | [Composer MCP Invocations](composer-mcp-invocations.md) | Accepted |
 | chronological-system-transcript | [Preserve chronological model system state](chronological-system-transcript.md) | Accepted |
 | mcp-tool-approval-risk | [User MCP tools keep the normal approval path](mcp-tool-approval-risk.md) | Accepted |
 | models-dev-catalog-authority | [models.dev owns published model metadata](models-dev-catalog-authority.md) | Accepted for implementation |
@@ -359,3 +360,6 @@ Each ADR includes:
 | image-generation-capability | [Image generation as a configured Agent capability](image-generation-capability.md) | Accepted |
 | retained-browser-pages-per-tab | [Retain a host-owned browser page per resource tab](retained-browser-pages-per-tab.md) | Accepted |
 | 0318 | [Publish native Linux arm64 artifacts](0318-linux-arm64-release-lane.md) | Accepted (D638) |
+| 0319 | [Inline external imports in owning Settings destinations](0319-settings-inline-imports.md) | Accepted (D645) |
+| 0320 | [Host-owned OAuth lifecycle for plugin providers](0320-plugin-oauth-provider-callbacks.md) | Accepted for implementation (D647; amends ADR 0259) |
+| 0321 | [Pin an acceptable address for mixed direct DNS answers](0321-skill-market-direct-dns-pinning.md) | Accepted (D648; amends ADR 0272) |

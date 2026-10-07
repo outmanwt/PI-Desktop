@@ -41,6 +41,11 @@ crates/host-core (tool execution + permissions)
 - executes builtin/plugin tools
 - returns normalized tool results
 
+The Node runtime normalizes text and image content from host tool results,
+including MCP `content` blocks and bare plugin content-block arrays. Well-formed
+image blocks are passed to vision-capable models and retained when tool history
+is restored; malformed image entries are ignored without failing the tool call.
+
 ## 4. Runtime API (package-level)
 
 ```ts
@@ -684,6 +689,17 @@ once with a new complete Markdown snapshot to create a new artifact. If approval
 already committed and a queued/running execution is interrupted, durable mode
 remains Agent and the execution is not replayed.
 
+
+Historical SubmitPlan/SubmitGoal rows render read-only contract cards with an
+expandable exact Markdown snapshot, authoritative approval status, an artifact
+opener, and a superseded badge when a later submission of the same kind exists.
+The live approval bar remains the only approval surface. Host history metadata
+and planning events reconcile by proposal identity/revision, so delayed pending
+tool echoes cannot undo approval. Plans remain readable after continued chat,
+compaction, session reselection, and host restart; deleting an artifact does not
+remove the stored Markdown. Hosts without approval metadata show snapshot text
+with unavailable status rather than presenting a stale pending result as truth.
+
 Manual mode and configuration selection may be staged by the renderer while a
 turn runs, but host persistence remains idle-only. Selecting Agent is an
 intentional user override and does not synthesize a plan or approval. Each
@@ -756,7 +772,9 @@ attachment, scratch, and project roots. Each image remains subject to the 10 MB
 safety bound, and restored history has a 30 MB aggregate raw-byte budget.
 The newest refs are considered first; all eligible images remain image blocks
 when the history fits, while over-budget or oversized images become safe
-`@path` fallbacks. Reads are bounded by the admitted file size. Base64 is
+`@path` fallbacks. An image whose message names it inline (`inlinePath`) is
+spliced back into the prompt at that position, so a restored turn keeps the
+order the user wrote. Reads are bounded by the admitted file size. Base64 is
 transient and never restored into durable UI messages or transcript records.
 - Failed assistant messages remain durable diagnostic transcript entries but
   are never restored into pi model context on a later turn.
@@ -857,7 +875,11 @@ core set rather than the on-demand catalog of §7.1:
   (`"provider/modelId"`) that overrides the delegate's model for that run.
   Resolution priority: Task.model parameter → definition frontmatter pin →
   session model. The parent agent sees a model summary in the system prompt
-  listing all models marked `availableForSubagents` in provider settings. If
+  listing all models marked `availableForSubagents` in provider settings. The
+  empty-catalog system summary, Task description and rejected-override error
+  point to Settings → Models → edit service/account → model Advanced →
+  "Available for AI delegation" → save, and require an exact catalog key
+  rather than guessed provider/model keys. If
   the delegation catalog is empty, the prompt tells the model to omit `model`
   and use the definition pin, or inherit the session model when unpinned; an
   explicit key that exactly names the current session provider/model is treated as the same inheritance case. Other
@@ -978,7 +1000,10 @@ ends at the provider's output-token limit (`stopReason: "length"` or
 bounded partial report remains under the failure explanation for diagnosis. A
 later delegate turn that ends normally clears the marker and can complete. A
 terminal parent error also aborts leftover delegates, skips the resume prompt,
-and returns the session to idle so Continue is not `AGENT_BUSY` (D352).
+and returns the session to idle so Continue is not `AGENT_BUSY` (D352). The
+interrupted delegates settle as `failed` with `SUBAGENT_PARENT_FAILED` and keep
+their transcript-backed resume eligibility. This does not automatically restart
+them; user Stop, TaskStop and dispose still settle as non-resumable cancellations.
 
 **Resumable delegations (ADR 0279).** `Task` accepts an optional `resume`
 parameter carrying the `delegationId` of a settled delegation in the same
@@ -1414,7 +1439,7 @@ execution activation rules:
 
 - Agent: `Read`, `Bash`, `Edit`, and `Write` (matching pi's coding-agent core)
 - Agent: `Skill` whenever the skill catalog is non-empty (D404, ADR 0230) — the
-  `# Skills` section and a user-typed `/skill-id` both ask the model to call
+  `# Skills` section and a user-typed `/skill:<skill-id>` both ask the model to call
   it, and a tool that is missing from the schema cannot be called at all
 - Agent: `Task`, `TaskWait`, `TaskList`, and `TaskStop` as well, whenever the
   subagent catalog is non-empty (§5f) — a capability the model has to go
@@ -1570,7 +1595,10 @@ tool continues with the runtime's base/root chain rather than waiting for the
 general host RPC timeout. A failed resolution never leaves a previously
 resolved sibling-directory chain active.
 
-All discovery stays within the session project root. Empty, unreadable, and
+All discovery stays within the session project root. A target path outside the
+project root, or the root path itself, resolves to the root's own chain instead
+of an empty result. File tools on attachments or other locations therefore
+keep the root chain (which may itself be empty). Empty, unreadable, and
 out-of-root files are skipped. The combined UTF-8 content is capped at 32 KiB
 and source paths are labelled under `# Project instructions`.
 The sidecar never reads workspace instructions directly. A changed root chain

@@ -137,6 +137,8 @@ type AgentPromptAttachment = {
  kind: "image" | "file";
  mimeType?: string;
  size?: number;
+ /** `@path` text this attachment occupies inline in `content`; main-filled. */
+ inlinePath?: string;
 };
 
 type AgentPromptResponse = {
@@ -210,7 +212,12 @@ older images use the existing safe `@path` fallback. Unknown/custom models
 without an explicit image override, non-vision models, oversized images, and
 unavailable refs also use the safe fallback. Main uses streamed hashing and file
 copying for oversized images. The durable user message stores `content` plus
-attachment metadata/ref, never base64.
+attachment metadata/ref, never base64. An image the draft named inline also
+carries that `@path` text as `inlinePath` on the durable message and on the
+sidecar attachment: the runtime keeps the prompt content blocks in the user's
+order instead of appending every image after the text, and the transcript
+renders the image at that position. An attachment without it keeps the trailing
+position.
 Invalid attachment paths fail with `PATH_OUTSIDE_WORKSPACE`.
 
 Regenerate history (D109) also uses session channels:
@@ -959,12 +966,25 @@ type ToolTokenUsage = {
 
 type SessionDetail = SessionSummary & {
   messages: UiMessage[];
+  /** Authoritative metadata for SubmitPlan/SubmitGoal calls in this page. */
+  planHistory?: Array<{ proposal: PlanProposal; superseded: boolean }>;
   /** Zero-based start offset when the renderer received a bounded page. */
   messageStart?: number;
   /** True when an older page can be requested with session.get. */
   hasMoreBefore?: boolean;
 };
 ```
+
+Historical contract reads attach `planHistory` only for submission call IDs in
+that session's returned page. SQLite supplies the current approval status,
+exact Markdown snapshot, artifact path, and same-kind supersession; original
+JSONL tool results stay immutable. Display content caps do not truncate these
+bounded contract snapshots (submission already enforces the Markdown limit).
+This additive field is optional for older/native hosts and empty forks: no
+approval record is copied or inferred from tool output or artifact filenames.
+The renderer may attach it to `UiMessage.planHistory` as display-only metadata;
+it must never persist that projection as model evidence.
+
 
 `messageCount` is the host-authoritative count of messages in the current
 canonical transcript. The renderer uses it to distinguish an empty durable
@@ -1487,6 +1507,12 @@ returns its status to the MCP editor.
 The desktop's `mcp.list` IPC response probes previously ready remote connections
 before reporting their status. If a server no longer responds, its row reports
 `failed` instead of retaining a stale `ready` status; Test connection retries it. A failed settings probe does not interrupt an in-flight tool call; Test connection closes the old client before retrying.
+Each user stdio MCP child starts with the resolved workspace path of the
+session that uses it as its working directory. Sessions in the same workspace
+share that child; sessions in different workspaces use separate children.
+A projectless session uses the user's home directory. Idle cached connections
+may be closed under the runtime's connection limit and are reconnected when
+the session needs them again.
 Stopping a session aborts its in-flight user MCP tool calls. The client sends
 `notifications/cancelled` for each active request without closing a connection
 used by other sessions; a completed or canceled tool call is never replayed.
@@ -1834,7 +1860,13 @@ Renderer IPC kept for the Plan-safe preview facade and URL fallback:
   shallowest path. Relative and indexed candidates must resolve to regular files
   whose real paths remain inside their answering root; an exact path through an
   escaping or dangling link cannot fall back to a same-name indexed file. The
-  files-panel ignore set applies. A reference that matches
+  files-panel ignore set applies. An absolute reference may also name a store
+  the app reads without searching it: the whole scratch store
+  (`<data_dir>/scratch/`) holds every session's files — a generated image is
+  clicked from whatever conversation is open — and the read guards (`fs/read`,
+  `fs/open`, the image reader) already accept it, so such a path completes
+  instead of reporting a restriction. A shorthand never completes from that
+  wider store; it still searches the session's own one. A reference that matches
   nothing returns `match: null`; an absolute path outside every allowed root
   also returns `reason: "outside-allowed-roots"`, without trying a same-name
   file inside a root. Resolving never opens anything (ADR 0262).
@@ -2283,13 +2315,17 @@ error model. Both the text payload and `structuredContent` are size-bounded to
 replaced by `{truncated: true, reason: "MCP_RESULT_LIMIT", preview: "<the first
 512 KiB of the JSON>"}`, so an external caller can never receive a silently
 shortened payload. If an oversized answer comes from `session/get`
-(`pi_session_get`) and has a `compaction` record, Main projects that record to
-the compact identity (`createdAt` and `details.generation`) and checks the size
-again before returning the truncation envelope. This lets a long session's
-transcript survive when its unbounded `ContextCompactionRecord` (`summary` /
-`retainedTail` / `details.modifiedFiles`) alone caused the overflow. Results
-already under the limit retain their full compaction details, and the desktop's
-own session detail is unchanged.
+(`pi_session_get`) and carries a `compaction` record or a `compactions` history,
+Main projects each record to the compact identity (`createdAt` and
+`details.generation`) and checks the size again before returning the truncation
+envelope. This lets a long session's transcript survive when its unbounded
+`ContextCompactionRecord` (`summary` / `retainedTail` / `details.modifiedFiles`)
+alone caused the overflow — including the case where the newest `compaction` is
+already compact but the unbounded `compactions` history alone still exceeds the
+limit, which no `messageLimit` / `contentLimit` reduction can fix because the
+overflow is independent of the transcript page. Results already under the limit
+retain their full compaction details, and the desktop's own session detail is
+unchanged.
 
 The six `session/collaboration/*` operations are first-party-plugin-only: they
 require an authenticated plugin tool invocation context, so they appear in
@@ -2378,7 +2414,9 @@ unchanged. See [provider configuration](12-provider-config-schema.md).
 ## 15. Cloud configuration sync
 
 The Settings → Cloud sync page uses the following renderer-to-Main channels;
-all are forwarded to the Host-owned `configSync.*` RPC methods:
+all are forwarded to the Host-owned `configSync.*` RPC methods. The page is a
+development-build-only surface for now; the channels and their Host contracts
+are unchanged:
 
 | IPC channel | Host method | contract |
 |---|---|---|

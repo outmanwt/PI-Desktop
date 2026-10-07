@@ -186,6 +186,8 @@ Root 用户轮次可能包括 `revisionRootId`、`revisionCount` 和
  输入框
 附件可供性保持隐藏，直到 main、sidecar、pi 模型
 功能和持久性都会消耗有效负载。
+草稿内联命名过位置的图片会带上 `inlinePath`，运行时按它把图片块放回原位置，
+而不是统一追加在提示文本之后。
 
 ### 5.1a 向当前回合补充指令
 
@@ -811,8 +813,17 @@ type ToolTokenUsage = {
 
 type SessionDetail = SessionSummary & {
  messages: UiMessage[];
+  /** Authoritative metadata for SubmitPlan/SubmitGoal calls in this page. */
+  planHistory?: Array<{ proposal: PlanProposal; superseded: boolean }>;
 };
 ```
+
+历史读取仅为当前会话返回页中的 SubmitPlan/SubmitGoal 调用附加 `planHistory`。
+SQLite 提供真实审批状态、完整 Markdown 快照、文件路径及同类型的新版本替代标记，
+原始 JSONL 工具结果保持不变。显示截断不影响这些有提交大小限制的计划快照。
+该字段兼容旧主机和原生会话；分叉会话不复制审批记录，也不从工具结果或文件名推断状态。
+渲染器可将其投影到 `UiMessage.planHistory`，但不得将显示元数据写回模型证据。
+
 
 Electron 主进程用该会话精确 provider/API URL 与 model 的本地 models.dev
 记录，丰富 session list/get/create/fork/configure 结果中的有效推理能力。
@@ -1851,7 +1862,7 @@ unchanged. See [provider configuration](12-provider-config-schema.md).
 
 ## 15. 云配置同步
 
-设置 → 云同步页面使用以下 Renderer-to-Main 通道；所有通道都会转发到 Host 所有的 `configSync.*` RPC 方法：
+设置 → 云同步页面使用以下 Renderer-to-Main 通道；所有通道都会转发到 Host 所有的 `configSync.*` RPC 方法。该页面当前仅在开发构建可见；通道与其 Host 契约不变：
 
 | IPC 通道 | Host 方法 | 契约 |
 |---|---|---|

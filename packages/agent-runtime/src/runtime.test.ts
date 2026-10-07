@@ -1,5 +1,8 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { type Agent, type AgentMessage } from "@earendil-works/pi-agent-core";
+import { type Agent, type AgentMessage, type AgentTool } from "@earendil-works/pi-agent-core";
 import {
   createAssistantMessageEventStream,
   getCurrentTools,
@@ -25,7 +28,7 @@ import {
 import { estimateOutputCapInputTokens } from "./output-cap.js";
 
 import { COMPACTION_SUMMARY_MAX_RETRIES } from "./compaction-summary-input.js";
-import type { ProjectInstructions } from "./project-instructions.js";
+import { loadInstructionChain, type ProjectInstructions } from "./project-instructions.js";
 import { classifyAgentError } from "./agent-errors.js";
 import {
   PROVIDER_RATE_LIMIT_MAX_RETRIES,
@@ -174,6 +177,7 @@ function createRuntime(
     subagentModelKeys: string[];
     pluginSkills: import("./plugin-skills-prompt.js").PluginSkillDef[];
     commandShell: CommandShellOption;
+    jevApiKey: string;
     turnId: string;
     host: { call: ReturnType<typeof vi.fn>; onNotification?: ReturnType<typeof vi.fn> };
     onEvent: (envelope: unknown) => void;
@@ -183,6 +187,7 @@ function createRuntime(
     host: (overrides.host ?? { call: vi.fn(), onNotification: vi.fn(() => () => {}) }) as never,
     sessionId: "session-1",
     mode: overrides.mode === "chat" ? "plan" : overrides.mode ?? "agent",
+    jevApiKey: overrides.jevApiKey,
     turnId: overrides.turnId,
     provider: overrides.provider ?? provider,
     commandShell: overrides.commandShell ?? commandShell,
@@ -779,10 +784,47 @@ describe("DesktopAgentRuntime configuration matching", () => {
     await runtime.dispose();
   });
 
+  it.each(["default", "accept-edits"] as const)("keeps %s delegate recovery across a new parent prompt", async (permission) => {
+    const host = {
+      call: vi.fn(async (method: string) => method === "tools.execute"
+        ? { ok: false, isError: true, errorCode: "EDIT_PARSE_FAILED", content: { error: "bad ops" } }
+        : undefined),
+    };
+    const runtime = createRuntime({ host });
+    const internal = runtime as unknown as {
+      agent: Agent;
+      scopeDelegateTools: (tools: AgentTool[], definition: SubagentDefinition, owner: string) => AgentTool[];
+      resetRunRecoveryState: () => void;
+      pendingMutationTermination?: unknown;
+    };
+    const edit = internal.agent.state.tools.find((tool) => tool.name === "Edit")!;
+    const definition: SubagentDefinition = {
+      name: "writer", description: "Edits files", prompt: "Edit the file", source: "user", tools: ["Edit"],
+      ...(permission === "accept-edits" ? { permission } : {}),
+    };
+    const [delegate] = internal.scopeDelegateTools([edit], definition, "writer-run");
+    const args = { path: "src/example.ts", tag: "ABCD", ops: "PUT 1.=1:" };
+    try {
+      expect(await delegate.execute("child-1", args)).not.toHaveProperty("terminate", true);
+      expect(await delegate.execute("child-2", args)).not.toHaveProperty("terminate", true);
+      expect(await edit.execute("parent-1", args)).not.toHaveProperty("terminate", true);
+      internal.resetRunRecoveryState();
+      expect(await delegate.execute("child-3", args)).toHaveProperty("terminate", true);
+      expect(internal.pendingMutationTermination).toBeUndefined();
+      expect(await edit.execute("parent-2", args)).not.toHaveProperty("terminate", true);
+      expect(await edit.execute("parent-3", args)).not.toHaveProperty("terminate", true);
+      expect(await edit.execute("parent-4", args)).toHaveProperty("terminate", true);
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
   it("clears the mutation strike once an edit on that path lands", async () => {
     const results = [
       { ok: false, isError: true, errorCode: "EDIT_PARSE_FAILED", content: {} },
       { ok: true, isError: false, content: { tag: "C3D4" } },
+      { ok: false, isError: true, errorCode: "EDIT_PARSE_FAILED", content: {} },
+      { ok: false, isError: true, errorCode: "EDIT_PARSE_FAILED", content: {} },
       { ok: false, isError: true, errorCode: "EDIT_PARSE_FAILED", content: {} },
     ];
     let editCall = 0;
@@ -805,7 +847,8 @@ describe("DesktopAgentRuntime configuration matching", () => {
     // Without the reset this failure would be strike three and end the turn.
     const afterSuccess = await edit.execute("edit-3", args);
     expect(afterSuccess.terminate).toBeUndefined();
-    expect((runtime as any).mutationFailureCounts.get("src/example.ts")).toBe(1);
+    expect((await edit.execute("edit-4", args)).terminate).toBeUndefined();
+    expect((await edit.execute("edit-5", args)).terminate).toBe(true);
 
     await runtime.dispose();
   });
@@ -950,6 +993,46 @@ describe("DesktopAgentRuntime configuration matching", () => {
     ).toBe(false);
 
     await runtime.dispose();
+  });
+
+  it("keeps the root prompt after reading a file outside the project", async () => {
+    const root = await mkdtemp(join(tmpdir(), "pi-desktop-instructions-"));
+    const outside = await mkdtemp(join(tmpdir(), "pi-desktop-attachment-"));
+    try {
+      await mkdir(join(root, "nested"));
+      await writeFile(join(root, "AGENTS.md"), "Use root rules.");
+      await writeFile(join(root, "nested", "AGENTS.md"), "Use nested rules.");
+      const globalPath = join(root, "nonexistent-global-file");
+      const host = {
+        call: vi.fn((method: string, params: { path?: string }) =>
+          method === "project.instructions.resolve"
+            ? loadInstructionChain(root, params.path, globalPath)
+            : Promise.resolve({ ok: true, content: "fixture contents" })),
+      };
+      const runtime = createRuntime({
+        host,
+        projectPath: root,
+        projectInstructions: await loadInstructionChain(root, undefined, globalPath),
+      });
+      try {
+        const read = (runtime as any).agent.state.tools.find(
+          (tool: any) => tool.name === "Read",
+        );
+        await read.execute("tool-in", { path: join(root, "nested", "file.ts") });
+        expect((runtime as any).agent.state.systemPrompt).toContain("Use nested rules.");
+
+        await read.execute("tool-out", { path: join(outside, "attached.txt") });
+        expect((runtime as any).agent.state.systemPrompt).toContain("Use root rules.");
+        expect((runtime as any).agent.state.systemPrompt).not.toContain("Use nested rules.");
+        expect(host.call.mock.calls.filter(([method]) => method === "project.instructions.resolve"))
+          .toHaveLength(2);
+      } finally {
+        await runtime.dispose();
+      }
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it("loads newly discovered nested instructions before a file tool runs", async () => {
@@ -1945,6 +2028,83 @@ describe("DesktopAgentRuntime live activity", () => {
 });
 
 describe("DesktopAgentRuntime deferred tool catalog", () => {
+  it("offers Jev only in Agent mode when an API key is supplied", async () => {
+    type ToolResult = {
+      content: Array<{ type: "text"; text: string }>;
+      details: { activated: string[]; addedToolNames: string[] };
+      isError?: boolean;
+    };
+    type RuntimeTestTool = {
+      name: string;
+      execute?: (id: string, input: { query: string }) => Promise<ToolResult>;
+    };
+    type RuntimeTestView = {
+      agent: { state: { tools: RuntimeTestTool[]; systemPrompt: string } };
+      prepareNextTurn: (input: never) => Promise<{
+        context: { tools: RuntimeTestTool[] };
+      }>;
+    };
+
+    const enabled = createRuntime({ jevApiKey: "fixture-key" });
+    try {
+      const view = enabled as unknown as RuntimeTestView;
+      const tools = view.agent.state.tools;
+      const search = tools.find((tool) => tool.name === "ToolSearch");
+      expect(search).toBeDefined();
+      expect(view.agent.state.systemPrompt).toContain("JevClassify");
+
+      const result = await search?.execute?.("search-jev", {
+        query: "JevClassify",
+      });
+      expect(result?.details.activated).toEqual(["JevClassify"]);
+      const next = await view.prepareNextTurn({
+        context: { systemPrompt: "", messages: [], tools },
+        messages: [],
+        newMessages: [],
+        toolResults: [
+          {
+            role: "toolResult",
+            toolCallId: "search-jev",
+            toolName: "ToolSearch",
+            content: result?.content ?? [],
+            details: result?.details,
+            isError: result?.isError ?? false,
+            timestamp: Date.now(),
+          },
+        ],
+      } as never);
+      expect(next.context.tools.map((tool) => tool.name)).toContain(
+        "JevClassify",
+      );
+    } finally {
+      await enabled.dispose();
+    }
+
+    for (const mode of ["plan", "goal"] as const) {
+      const restricted = createRuntime({ mode, jevApiKey: "fixture-key" });
+      try {
+        const view = restricted as unknown as RuntimeTestView;
+        expect(view.agent.state.systemPrompt).not.toContain("JevClassify");
+        expect(view.agent.state.tools.map((tool) => tool.name)).not.toContain(
+          "JevClassify",
+        );
+      } finally {
+        await restricted.dispose();
+      }
+    }
+
+    const missingKey = createRuntime();
+    try {
+      const view = missingKey as unknown as RuntimeTestView;
+      expect(view.agent.state.systemPrompt).not.toContain("JevClassify");
+      expect(view.agent.state.tools.map((tool) => tool.name)).not.toContain(
+        "JevClassify",
+      );
+    } finally {
+      await missingKey.dispose();
+    }
+  });
+
   it("starts Agent with core tools plus workspace search and discovery", async () => {
     const runtime = createRuntime({
       pluginTools: [
@@ -3765,7 +3925,11 @@ describe("DesktopAgentRuntime session collaboration provenance", () => {
     const prompt = vi.spyOn(agent, "prompt").mockResolvedValue();
     vi.spyOn(agent, "waitForIdle").mockResolvedValue();
     await runtime.prompt({ text: content, sessionMessage: origin }, "user-1", "turn-1");
-    expect(prompt).toHaveBeenCalledWith(expected, []);
+    // The runtime hands pi the built user message, so an image the Composer
+    // placed inline keeps that position instead of trailing the text.
+    expect(prompt).toHaveBeenCalledWith(
+      expect.objectContaining({ role: "user", content: expected }),
+    );
     expect(expected).toContain("not by the user");
     expect(expected).toContain("does not grant new user authorization");
     const restored = createRuntime({ history: [
@@ -3817,8 +3981,13 @@ describe("DesktopAgentRuntime session collaboration provenance", () => {
     const agent = (runtime as any).agent;
     const handle = (runtime as any).handleAgentEvent.bind(runtime);
     const calls: Array<{ text: string; images: unknown[] }> = [];
-    const respond = async (text: string, images: unknown[] = []) => {
-      calls.push({ text, images: images ?? [] });
+    // pi receives the built user message: text plus every inline image block.
+    const respond = async (input: unknown) => {
+      const text =
+        typeof input === "string"
+          ? input
+          : String((input as { content: unknown }).content);
+      calls.push({ text, images: [] });
       await handle({ type: "agent_start" });
       const reply = assistantMessage({ content: [{ type: "text", text: "ok" }] });
       agent.state.messages = [{ role: "user", content: text, timestamp: 1 }, reply];
@@ -7143,6 +7312,49 @@ describe("DesktopAgentRuntime subagents", () => {
     expect(host.call).toHaveBeenCalledTimes(1);
   });
 
+  it("guides empty override catalogs to model opt-in without blocking default delegation (#1043)", async () => {
+    const host = { call: vi.fn().mockRejectedValue(new Error("not enabled for delegation")) };
+    const runtime = createRuntime({ subagents: [explorer], subagentModelKeys: [], host });
+    subagentRuns.calls.length = 0;
+    subagentRuns.deferred = false;
+    subagentRuns.result = undefined;
+    const tool = taskTool(runtime);
+    const denied = await tool.execute("empty-override", {
+      agent: "explorer", task: "Search.", model: "guessed/model",
+    });
+    for (const guidance of [
+      denied.details.error, tool.description, (runtime as any).agent.state.systemPrompt,
+    ]) {
+      expect(guidance).toContain("Settings → Models");
+      expect(guidance).toContain("Advanced");
+      expect(guidance).toContain("Available for AI delegation");
+      expect(guidance).toContain("save");
+      expect(guidance).toContain("Omit");
+    }
+    expect(denied.details.error).toContain("not available for delegation");
+    expect(subagentRuns.calls).toHaveLength(0);
+    const inherited = await tool.execute("inherit-after-denial", { agent: "explorer", task: "Search." });
+    expect(inherited.details.error).toBeUndefined();
+    expect(subagentRuns.calls).toHaveLength(1);
+    expect(subagentRuns.calls[0].provider).toBe(provider);
+    await runtime.dispose();
+  });
+
+  it("lists exact authorized keys instead of empty-catalog guidance for an invalid override (#1043)", async () => {
+    const runtime = createRuntime({
+      subagents: [explorer],
+      subagentProviders: { "allowed/selected-model": provider },
+      subagentModelKeys: ["allowed/selected-model"],
+      host: { call: vi.fn().mockRejectedValue(new Error("not enabled for delegation")) },
+    });
+    const denied = await taskTool(runtime).execute("unknown-override", {
+      agent: "explorer", task: "Search.", model: "guessed/model",
+    });
+    expect(denied.details.error).toContain("Available: allowed/selected-model.");
+    expect(denied.details.error).not.toContain("Settings → Models");
+    await runtime.dispose();
+  });
+
   it("allows an opted-in model to override a definition pin without changing D278", async () => {
     const pinnedProvider = { ...provider, modelId: "remote-model", modelConfig: undefined };
     const selected = { ...provider, modelId: "selected-model", modelConfig: undefined };
@@ -7916,7 +8128,7 @@ describe("DesktopAgentRuntime subagents", () => {
     await runtime.dispose();
   });
 
-  it("aborts leftover delegates on parent rate-limit exhaustion so the session can continue", async () => {
+  it("keeps interrupted delegates resumable after parent rate-limit exhaustion", async () => {
     const onEvent = vi.fn();
     const runtime = createRuntime({ subagents: [explorer], onEvent });
     subagentRuns.calls.length = 0;
@@ -7971,9 +8183,12 @@ describe("DesktopAgentRuntime subagents", () => {
 
     await vi.waitFor(() => {
       expect((runtime as any).delegations.get(delegationId).status).toBe(
-        "aborted",
+        "failed",
       );
     });
+    expect((runtime as any).delegationChains.resolveResume({
+      resume: delegationId, agentName: "explorer", runningDelegationIds: new Set(),
+    }).ok).toBe(true);
 
     const prompt = vi.fn(async () => undefined);
     (runtime as any).agent.prompt = prompt;
@@ -8564,6 +8779,78 @@ describe("DesktopAgentRuntime subagents", () => {
       };
     }
 
+    it("resumes both delegates interrupted by parent failure with their own history", async () => {
+      const runtime = createRuntime({ subagents: [explorer] });
+      const internals = runtime as any;
+      subagentRuns.calls.length = 0;
+      subagentRuns.instances.length = 0;
+      subagentRuns.result = undefined;
+      subagentRuns.deferred = true;
+      try {
+        const ids: string[] = [];
+        for (let index = 0; index < 2; index++) {
+          const callId = `original-${index}`;
+          const started = await startTask(runtime, callId, { agent: "explorer", task: `Task ${index}` });
+          ids.push((started.details as any).delegationId);
+          subagentRuns.calls[index].onEvent(delegateEnvelope(callId, { type: "message_end", message: {
+            id: `child-${index}`, role: "assistant", content: `Finding ${index}`,
+            createdAt: "2026-10-04T00:00:00.000Z", status: "complete",
+          } }));
+        }
+        internals.terminateParentTurn();
+        await vi.waitFor(() => {
+          expect(ids.map((id) => internals.delegations.get(id).status)).toEqual(["failed", "failed"]);
+        });
+        expect(internals.runningDelegations()).toHaveLength(0);
+        for (const id of ids) {
+          expect(internals.delegations.get(id).result).toMatchObject({ status: "failed",
+            error: { code: "SUBAGENT_PARENT_FAILED", resumeId: id } });
+        }
+        internals.agent.prompt = vi.fn(async () => undefined);
+        internals.agent.waitForIdle = vi.fn(async () => undefined);
+        await runtime.prompt("Continue the failed delegates");
+        subagentRuns.deferred = false;
+        for (let index = 0; index < 2; index++) {
+          const result = await startTask(runtime, `resumed-${index}`, {
+            agent: "explorer", task: "Continue", resume: ids[index],
+          });
+          expect((result.details as any).resumedFrom).toBe(ids[index]);
+          const context = JSON.stringify(subagentRuns.calls.at(-1).initialMessages);
+          expect(context).toContain(`Finding ${index}`);
+          expect(context).not.toContain(`Finding ${1 - index}`);
+        }
+      } finally {
+        subagentRuns.deferred = false;
+        await runtime.dispose();
+      }
+    });
+
+    it.each(["abort", "TaskStop"])("explicit %s wins over a pending parent-error interruption", async (action) => {
+      const runtime = createRuntime({ subagents: [explorer] });
+      const internals = runtime as any;
+      subagentRuns.calls.length = 0;
+      subagentRuns.instances.length = 0;
+      subagentRuns.deferred = true;
+      subagentRuns.ignoreAbort = true;
+      try {
+        const started = await startTask(runtime, "original", { agent: "explorer", task: "Find it" });
+        const id = (started.details as any).delegationId;
+        internals.terminateParentTurn();
+        const cancelled = action === "abort" ? runtime.abort() : internals.agent.state.tools
+          .find((tool: any) => tool.name === "TaskStop").execute("stop", { delegationIds: [id] });
+        subagentRuns.resolveRun?.({ agentName: "explorer", status: "aborted", report: "Aborted",
+          turns: 1, toolCalls: 0 });
+        await cancelled;
+        await vi.waitFor(() => expect(internals.delegations.get(id).status).toBe(action === "abort" ? "aborted" : "stopped"));
+        expect(internals.delegationChains.resolveResume({ resume: id, agentName: "explorer",
+          runningDelegationIds: new Set() }).ok).toBe(false);
+      } finally {
+        subagentRuns.ignoreAbort = false;
+        subagentRuns.deferred = false;
+        await runtime.dispose();
+      }
+    });
+
     it("records a delegate's reads in-session so the same session can resume them", async () => {
       const runtime = createRuntime({ subagents: [explorer] });
       const internals = runtime as any;
@@ -8687,9 +8974,10 @@ describe("DesktopAgentRuntime subagents", () => {
       await runtime.dispose();
     });
 
-    it("resumes a chain a restart rebuilt from a completed Task row", async () => {
+    it.each(["completed", "failed"])("resumes a chain a restart rebuilt from a %s Task row", async (status) => {
       const history: UiMessage[] = [
-        restartedTaskRow("task-1", "del-1", { status: "completed" }),
+        restartedTaskRow("task-1", "del-1", { status,
+          ...(status === "failed" ? { error: { code: "SUBAGENT_PARENT_FAILED" } } : {}) }),
         delegateRow("child-1", "task-1"),
       ];
       const runtime = createRuntime({ subagents: [explorer], history });
@@ -10748,6 +11036,91 @@ describe("toolResultFromUi image restoration (issue #1073)", () => {
     const restored = toolResultFromUi(row, timestamp);
     expect(restored.content).toEqual([{ type: "text", text: expect.stringContaining("broken.png") }]);
   });
+
+  it("restores a bare plugin content-block array without flattening it to JSON (#1360)", () => {
+    const row = {
+      id: "call-3",
+      role: "tool" as const,
+      content: "",
+      createdAt: new Date(timestamp).toISOString(),
+      toolCallId: "call-3",
+      toolName: "plugin_shot",
+      // A plugin tool returned a bare content-block array rather than an
+      // object with `content` or a top-level `images` field.
+      toolResult: [
+        { type: "text", text: "here is the screenshot" },
+        { type: "image", data: "cG5nLWJ5dGVz", mimeType: "image/png" },
+      ],
+      toolStatus: "success" as const,
+      isError: false,
+    };
+    const restored = toolResultFromUi(row, timestamp);
+    expect(restored.content).toEqual([
+      { type: "text", text: "here is the screenshot" },
+      { type: "image", data: "cG5nLWJ5dGVz", mimeType: "image/png" },
+    ]);
+  });
+
+  it.each([
+    [
+      "MCP content property",
+      {
+        content: [
+          { type: "text", text: "MCP returned a screenshot" },
+          { type: "image", data: "cG5nLWJ5dGVz", mimeType: "image/png" },
+        ],
+        isError: false,
+      },
+    ],
+    [
+      "plugin bare content-block array",
+      [
+        { type: "text", text: "Plugin returned a screenshot" },
+        { type: "image", data: "cG5nLWJ5dGVz", mimeType: "image/png" },
+      ],
+    ],
+  ])("normalizes %s into model image blocks", async (_shape, rawContent) => {
+    const host = {
+      call: vi.fn().mockImplementation((method: string) =>
+        Promise.resolve(
+          method === "project.instructions.resolve"
+            ? { entries: [] }
+            : { ok: true, content: rawContent },
+        ),
+      ),
+    };
+    const runtime = createRuntime({ host });
+    const read = (runtime as any).toolCatalog.get("Read");
+    const result = await read.execute("image-result", { path: "screenshot.png" });
+    const expectedText =
+      _shape === "MCP content property"
+        ? "MCP returned a screenshot"
+        : "Plugin returned a screenshot";
+    const expected = [
+      { type: "text", text: expectedText },
+      { type: "image", data: "cG5nLWJ5dGVz", mimeType: "image/png" },
+    ];
+
+    expect(result.content).toEqual(expected);
+    expect(result.details).toMatchObject({ imageCount: 1 });
+
+    const restored = toolResultFromUi(
+      {
+        id: "image-result",
+        role: "tool",
+        content: "",
+        createdAt: new Date(timestamp).toISOString(),
+        toolCallId: "image-result",
+        toolName: "Read",
+        toolResult: result,
+        toolStatus: "success",
+        isError: false,
+      },
+      timestamp,
+    );
+    expect(restored.content).toEqual(expected);
+    await runtime.dispose();
+  });
 });
 
 it("does not reuse stale plugin declarations when schema or permission metadata changes", async () => {
@@ -10758,4 +11131,104 @@ it("does not reuse stale plugin declarations when schema or permission metadata 
     expect(runtimeMatches(runtime, { pluginTools: [{ ...plugin, parameters: { type: "object", properties: { file: { type: "string" } } } }] })).toBe(false);
     expect(runtimeMatches(runtime, { pluginTools: [{ ...plugin, planSafeActions: ["inspect"] }] })).toBe(false);
   } finally { await runtime.dispose(); }
+});
+
+describe("inline image placement", () => {
+  const imageAttachment = (data: string, inlinePath?: string) => ({
+    path: "attachments/prepared",
+    name: "pasted.png",
+    kind: "image" as const,
+    mimeType: "image/png",
+    data,
+    ...(inlinePath ? { inlinePath } : {}),
+  });
+
+  it("keeps every image block where the user placed it in the prompt", async () => {
+    const runtime = createRuntime();
+    const agent = (runtime as unknown as { agent: Agent }).agent;
+    const prompt = vi.spyOn(agent, "prompt").mockResolvedValue();
+    vi.spyOn(agent, "waitForIdle").mockResolvedValue();
+    try {
+      await runtime.prompt({
+        text: "compare @/scratch/a.png with @/scratch/b.png now",
+        attachments: [
+          { ...imageAttachment("QUJD", "@/scratch/a.png"), name: "a.png" },
+          { ...imageAttachment("REVG", "@/scratch/b.png"), name: "b.png" },
+        ],
+      });
+      expect(prompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: "user",
+          content: [
+            { type: "text", text: "compare " },
+            { type: "image", data: "QUJD", mimeType: "image/png" },
+            { type: "text", text: " with " },
+            { type: "image", data: "REVG", mimeType: "image/png" },
+            { type: "text", text: " now" },
+          ],
+        }),
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("follows the text with an image the prompt does not name inline", async () => {
+    const runtime = createRuntime();
+    const agent = (runtime as unknown as { agent: Agent }).agent;
+    const prompt = vi.spyOn(agent, "prompt").mockResolvedValue();
+    vi.spyOn(agent, "waitForIdle").mockResolvedValue();
+    try {
+      await runtime.prompt({
+        text: "look at this",
+        attachments: [imageAttachment("QUJD")],
+      });
+      expect(prompt).toHaveBeenCalledWith(
+        expect.objectContaining({
+          role: "user",
+          content: [
+            { type: "text", text: "look at this" },
+            { type: "image", data: "QUJD", mimeType: "image/png" },
+          ],
+        }),
+      );
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("restores a durable inline placement from the session history", async () => {
+    const runtime = createRuntime({
+      history: [
+        {
+          id: "user-image",
+          role: "user",
+          content: "look @/scratch/a.png please",
+          status: "complete",
+          createdAt: new Date().toISOString(),
+          attachments: [
+            {
+              kind: "image",
+              name: "a.png",
+              ref: "attachments/a",
+              mimeType: "image/png",
+              data: "QUJD",
+              inlinePath: "@/scratch/a.png",
+            },
+          ],
+        },
+      ],
+    });
+    try {
+      const messages = (runtime as unknown as { agent: Agent }).agent.state.messages;
+      const user = messages.find((message) => message.role === "user");
+      expect(user?.content).toEqual([
+        { type: "text", text: "look " },
+        { type: "image", data: "QUJD", mimeType: "image/png" },
+        { type: "text", text: " please" },
+      ]);
+    } finally {
+      await runtime.dispose();
+    }
+  });
 });
