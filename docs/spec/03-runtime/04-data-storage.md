@@ -69,8 +69,10 @@ The location is machine-local and never part of cloud configuration sync.
 
 Migration is cold: the accepted settings action journals pending work, then uses
 existing ordered shutdown to settle turns/outbox and stop writers. The next launch
-opens only a sandboxed, nonpersistent maintenance window before importing the
-application composition root. It inventories bytes/files, checks free space, streams
+points Chromium `sessionData` at a temporary directory, then opens only a
+sandboxed, nonpersistent maintenance window before importing the application
+composition root. The default session initializes with that first window, so it
+must not be inside a profile the job is about to copy or clean. It inventories bytes/files, checks free space, streams
 the copy, preserves permissions and internal/external links, and SHA-256 verifies
 both source and copied files. An interrupted copy may be retried only with its
 matching ownership marker; nonempty/unrelated destinations and overlapping roots
@@ -1434,7 +1436,7 @@ truncating at a guessed position.
     cross the host/Electron/renderer boundary
   - full transcript consumers → one sequential read of
     `sessions/<id>.jsonl` (no DB), retained for sidecar context and mutations
-  - session list → `idx_sessions_updated`
+  - session list → `idx_sessions_updated_id(updated_at DESC, id DESC)`
   - group-by-project → `idx_sessions_project`
   - badges/cost rollup → `idx_turns_session` (latest turn per session)
   - global token history → `idx_turns_ended_at` (completed turns by end time)
@@ -1518,6 +1520,9 @@ truncating at a guessed position.
   and `turn_queue.voice_origin_json`; existing queue rows remain valid and
   unset. The migration keeps a v19 backup, and queue entries remain held until
   the existing Agent Host controller attaches.
+- **Schema v22 is additive.** It replaces `idx_sessions_updated` with
+  `idx_sessions_updated_id(updated_at DESC, id DESC)` for session-list ordering.
+  It changes no rows or persisted fields; a v21 backup precedes the migration.
 - **Schema v14 is additive.** It adds nullable `sessions.deleted_at`, the
   partial deletion index, and `session_import_origins`. Existing sessions stay
   active and have no origin rows. The migration runs in the same guarded
@@ -1700,6 +1705,11 @@ source-discriminated transcript authority owned by the Node agent sidecar. They
 are never inserted into SQLite and never copied to the Desktop transcript
 directory. `session.list` merges their projections with Rust-owned
 Desktop summaries, and `session.get` routes by the opaque `native-pi:` id.
+Discovery deduplicates native files that share the same JSONL `header.id`,
+keeping the projection with the newest transcript `updatedAt`. The selected
+file retains its path-derived opaque session id; duplicate files are not
+rewritten or deleted, and their paths are omitted from the in-memory lookup
+map for the current scan.
 
 Detail reads take an immutable byte snapshot, parse it into an in-memory
 `SessionManager`, and follow the current native branch. They must not call

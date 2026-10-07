@@ -222,10 +222,13 @@ type ToolBudgetHealth = {
   every session attached to it, removing those sessions' transcript, scratch,
   and review files and the project's durable memory, and never touching the
   project folder on disk. Idempotent: an unknown path returns
-  `{ removed: false, sessionsRemoved: 0 }`. A path that is a root of a stored
-  multi-folder project group is refused so the group keeps a valid primary root,
-  and the call is refused (1008 / `CONFLICT`) while any attached session has a
-  running turn, so a live turn never loses the transcript it is writing.
+  `{ removed: false, sessionsRemoved: 0 }`. If the path belongs to a stored
+  project group, deletion detaches that root in the same flow; deleting the
+  primary promotes the first remaining root, and deleting the last root also
+  removes the group record. The call is refused (1008 / `CONFLICT`) while any
+  attached session has a running turn, before changing group membership, so a
+  live turn never loses the transcript it is writing and a rejected delete
+  leaves the project group unchanged.
 - `project.memory.get({ path })` — returns the durable memory for the canonical
   project path, or an empty record when no memory has been saved
 - `project.memory.set({ path, entries })` — normalizes and stores visual memory
@@ -594,6 +597,12 @@ Tool execution starts only after admission. Shell spawn retries transient
 resource exhaustion (`EAGAIN` / `WouldBlock`) with bounded backoff, never
 retries a command after it has started, and reaps timed-out children before
 releasing the execution slot.
+Admitted `Read`, `Glob`, `Grep`, `Write`, and `Edit` calls run their
+synchronous filesystem work, including the `rg` child wait, on Tokio's blocking
+pool rather than on an async worker, so a long traversal cannot delay unrelated
+RPCs. The read and mutation class limits above also bound those blocking
+threads. Results and error codes are unchanged; a blocking task that panics
+returns `INTERNAL` instead of dropping the response.
 
 `session.appendMessage` is idempotent by message id. An id already indexed in
 another session is remapped to `{sessionId}:{id}` before the JSONL write, and

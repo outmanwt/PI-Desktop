@@ -26,13 +26,19 @@ import {
 export function useOpenPreviewTarget() {
   const openFileRef = useOpenChatFileRef();
   return useCallback(
-    (target: ChatPreviewTarget) =>
-      target.kind === "file"
-        ? openFileRef(target.path, undefined, undefined, {
-            line: target.line,
-            column: target.column,
-          })
-        : openHttpUrl(target.url),
+    (target: ChatPreviewTarget) => {
+      if (target.kind === "file") {
+        return openFileRef(target.path, undefined, undefined, {
+          line: target.line,
+          column: target.column,
+        });
+      }
+      if (target.kind === "session") {
+        void useAppStore.getState().selectSession(target.sessionId).catch(() => undefined);
+        return;
+      }
+      openHttpUrl(target.url);
+    },
     [openFileRef],
   );
 }

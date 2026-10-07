@@ -8,7 +8,7 @@
 | Topic | Decision |
 |---|---|
 | Default mode | Agent |
-| Agent tools | Read / Glob / Grep / Write / Edit / Bash + registered plugin tools |
+| Agent tools | Read / Glob / Grep / Write / Edit / Bash + registered plugin tools + optional Jev classifier |
 | Plan tools | Read / Glob / Grep / BrowserPreview / Bash / SubmitPlan + plugin tools that declare plan-safe actions |
 | Goal tools | Read / Glob / Grep / BrowserPreview / Bash / SubmitGoal + plugin tools that declare plan-safe actions |
 | Plan and Goal hard deny | Write / Edit / plugin tools without `planSafeActions` / unknown tools / the other kind's submit tool |
@@ -50,7 +50,7 @@ The first Agent request includes `Read`, `Bash`, `Edit`, `Write`, `Glob`, and
 `Grep`. Keeping workspace listing and content search in the initial schema
 avoids a discovery round trip for routine project exploration (the amendment
 to ADR 0048 records this change). Plan and Goal keep their read/inspection core.
-`Skill` is deliberately not deferred: a `/skill-id` invocation instructs the
+`Skill` is deliberately not deferred: a `/skill:<skill-id>` invocation instructs the
 model to call it, and a tool absent from the schema cannot be called at all, so
 it ships with the first request whenever the skill catalog is non-empty (D404,
 ADR 0230). The runtime still registers optional capabilities without sending
@@ -59,6 +59,7 @@ their full schemas up front:
 - `BrowserPreview`
 - `PluginCheck`, `PluginScaffold`, and `PluginPack`
 - plugin-declared agent tools
+- `JevClassify` when the user enables Jev and saves a TypeSafe API key
 
 These tools appear in a bounded `# On-demand tools` catalog with compact
 descriptions. The model calls the local `ToolSearch` tool with an exact name or
@@ -75,9 +76,34 @@ workspace/scratch containment, timeout, and audit rules do not change when a
 tool is loaded. `ToolSearch` itself never executes a workspace operation and
 never bypasses host-core policy.
 
+`JevClassify` is offered only in Agent mode, only when explicitly enabled in
+Settings → Models, and only while its TypeSafe key is available. It is a
+structured classifier call, not a chat model or workspace operation. The Agent
+must supply its JSON state and typed questions; those values go directly to
+TypeSafe when the tool is called. The tool validates JSON shape and bounds the
+payload to 24 KiB, uses the pi-ai `jev-latest` classifier with a 45-second
+timeout, and returns only structured answers and reported usage. Plan and Goal
+never receive the tool. The settings disclosure warns users not to pass secrets
+or personal information.
+
+An explicit composer MCP selection carries exact server IDs to the runtime.
+The current host-supplied catalog associates each MCP tool with its server ID;
+selection activates all mode-allowed tools for that server before the request,
+without a ToolSearch call or its result-count limit. An optional `mcpToolNames`
+selection narrows activation to those exact catalog names, each owned by a
+selected server. Unknown, differently owned or mode-denied requested tools fail;
+there is no fallback to whole-server activation. Steering activates only
+when the queued user message is consumed, before the next provider dispatch.
+Unknown servers and selections with no mode-allowed tools fail explicitly.
+Activation preserves other tools, follows existing session restoration, and
+never bypasses execution permissions. Missing selection fields retain normal
+on-demand discovery. Main rejects a selected MCP command without task text or
+an attachment before opening or persisting a turn. See
+`docs/adr/composer-mcp-invocations.md`.
+
 ## 3. Common Tool Constraints
 
-Every non-interactive execution tool must have:
+Every non-interactive workspace execution tool must have:
 
 1. JSON schema / typebox parameter definition
 2. timeout
@@ -91,6 +117,11 @@ the renderer response without an expiry, and returns a bounded structured tool
 result. Options may be plain strings or `{ label, description? }` objects; the
 selected label remains the answer value. Stopping the turn resolves outstanding
 questions as skipped.
+
+`JevClassify` is an external provider operation rather than a workspace
+execution tool. It validates its structured request, observes cancellation,
+uses a bounded provider timeout, and returns typed classifier results; it has
+no filesystem path or host-core workspace permission surface.
 
 ## 4. Path Rules
 
@@ -314,7 +345,11 @@ keeps only the ordering and loop-guard rules. The agent mutation workflow is:
    result with an error-specific recovery hint, so the agent stops after reporting
    the exact mismatch. Do not hand-edit old unified-diff hunk headers or continue a
    repair loop.
-4. Keep mutations to one path sequential, even when read/search calls are
+4. Recovery counters are scoped to the parent turn or the individual delegate
+   run. One delegate's failed mutation cannot terminate another delegate or the
+   parent. A delegate that exhausts its budget returns a failed, resumable Task
+   result while preserving any report text it already produced.
+5. Keep mutations to one path sequential, even when read/search calls are
    issued in parallel.
 
 An `EDIT_LINES_UNSEEN` rejection whose reveal was complete is exempt from step

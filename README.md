@@ -37,7 +37,7 @@ Local-first · Model-agnostic · Plugin-powered · macOS / Windows / Linux
 
 </div>
 
-> **Current release line: 0.16.x (Early Preview).**
+> **Current release line: 0.17.x (Early Preview).**
 
 ---
 
@@ -610,6 +610,7 @@ The Agent Runtime uses:
 
 * `pi-ai`
 * `pi-agent-core`
+* `pi-coding-agent`
 
 > **Pi provides the Agent Engine. PI-Desktop builds the persistent desktop workspace, sessions, permissions, plugins, and agent orchestration around it.**
 

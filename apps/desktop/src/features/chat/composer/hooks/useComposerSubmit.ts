@@ -198,12 +198,12 @@ export function useComposerSubmit({
   };
 
   const submit = async (steering = false) => {
-    const text = draft.ref.current ? readEditorValue(draft.ref.current) : value;
-    const inlineContent = serializeInlineComposerFileReferences(
-      text,
-      activeFileReferences,
-    );
-    const serializedContent = serializeComposerFileReferences(text, activeFileReferences);
+    const rawText = draft.ref.current ? readEditorValue(draft.ref.current) : value;
+    // An image chip keeps its place in the prompt: main resolves the `@path` it
+    // serializes to against the attachment it prepared, so the image block
+    // arrives where the user put it instead of trailing the text.
+    const inlineContent = serializeInlineComposerFileReferences(rawText, activeFileReferences);
+    const serializedContent = serializeComposerFileReferences(rawText, activeFileReferences);
     if (!serializedContent) return;
     if (sendBlocked) {
       if (pasting) showToast(t("chat.pasteInProgress"), { variant: "info" });
@@ -212,7 +212,7 @@ export function useComposerSubmit({
     invalidatePromptEnhancement();
     const submittedDraftKey = draftKey;
     const submittedDraftRevision = draft.draftRevision(submittedDraftKey);
-    const submittedDraft = draft.draftSnapshot(text);
+    const submittedDraft = draft.draftSnapshot(rawText);
     // Recall keeps what the user typed, in the conversation that submitted it.
     // For a mode command that is the whole `/agent …` text rather than its body,
     // so re-submitting re-runs it; every other recorded path stores exactly the
@@ -252,7 +252,7 @@ export function useComposerSubmit({
         if (isModeCommand && commandBody) {
           try {
             await runPaletteCommand(command.id);
-            const visibleDraft = text.trim();
+            const visibleDraft = rawText.trim();
             const visibleCommandEnd = visibleDraft.search(/\s/);
             const visibleCommandBody =
               visibleCommandEnd === -1
