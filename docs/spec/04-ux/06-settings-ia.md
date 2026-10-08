@@ -189,7 +189,7 @@ Settings is a **full-window page** that replaces the app sidebar + main chrome (
   - **Relaxed network mode**: one switch persisting as
     `AppSettings.networkPolicy.mode` (`relaxed` | `strict`), **on by default**.
     When it is on, an endpoint the user typed themselves — a model base URL, an
-    MCP server, a market source, a git remote — may be a loopback or LAN address,
+    MCP server, a git remote — may be a loopback or LAN address,
     may use plain `http`, and a transparent proxy's fake-IP answers are
     tolerated. Off returns those endpoints to the public-HTTPS-only boundary.
     The first plaintext hop to such an endpoint shows one informational notice.
@@ -429,6 +429,13 @@ a usage tab.
   - provider cards with host, first configured model, secret status,
     and test / make-default / delete actions
   - Add account and Add provider use the same primary button treatment
+  - Add Service groups unconfigured API-key providers declared by loaded
+    plugins under each contribution's optional custom category. The category
+    defaults to the plugin name and supports English and Simplified Chinese.
+    Tiles show only the provider name; a one-sentence introduction appears on
+    hover or keyboard focus. Search also matches category, plugin, endpoint,
+    and model IDs. A selection opens the Host-owned API-key form; after saving,
+    that provider remains in the service list and leaves the chooser.
   - the add/edit dialog configures connection identity (name, endpoint, API
     style, and secret). It shrinks to the overlay on a narrow window, and a
     focused credential field keeps its 2px accent ring inside the dialog
@@ -851,8 +858,6 @@ system while preserving their different data ownership:
 - Plugin management remains available from the app shell's independent
   **Plugins** destination, including load, enable, disable, and uninstall; it is
   not duplicated in Settings
-- The marketplace source selector lives inside **Plugins → Marketplace**, next
-  to the catalog controls; it is not a separate Settings destination.
 - Project archive is indexed by Settings search and is not duplicated as a home
   sidebar destination or standalone global-search page
 - Back to app returns to chat shell from the rail's pinned footer action

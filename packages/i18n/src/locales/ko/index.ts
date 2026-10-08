@@ -364,6 +364,7 @@ export const ko = {
     fileRefMissing: "{{name}}과(와) 일치하는 파일이 없습니다",
     fileRefRestricted: "{{name}}은(는) 앱이 접근할 수 있는 위치 밖에 있습니다",
     fileRefLookupFailed: "이 파일 참조를 확인할 수 없습니다.",
+    fileManagerUnavailable: "파일 관리자를 사용할 수 없어 내장 파일 보기에서 열었습니다.",
     revealFileInFolder: "폴더에서 보기",
     fileRevealFailed: "폴더에서 파일을 표시할 수 없습니다.",
     copyFullPath: "전체 경로 복사",
@@ -1557,6 +1558,7 @@ sklm: {
     modelsFetchFailed: "모델을 불러올 수 없습니다.",
     modelsFetchFailedStatus: "요청 실패 ({{status}}).",
     modelsFetchNotFound: "이 주소에 모델 목록이 없습니다.",
+    providerUnavailable: "선택한 제공자를 더 이상 사용할 수 없습니다.",
     modelsFetchInvalidResponse: "서비스가 모델 목록을 반환하지 않았습니다.",
     modelsEmptyHint: "모델을 불러오려면 기본 URL을 입력하세요.",
     noModelMatches: "일치하는 모델이 없습니다.",
@@ -2271,6 +2273,7 @@ importConfirm: "가져온 확장은 에이전트 프로세스 안에서 에이�
       "bus.subscribe": "다른 플러그인의 메시지 받기",
       "browser.cdp": "작업 패널 브라우저 제어",
       "usage.read": "사용량 통계 읽기",
+      "session.autoTitle": "첫 턴 제목 맥락 읽기 및 자동 제목 업데이트",
     },
     permissionHelp: {
       "ui.panel": "플러그인이 앱 안에 자체 패널을 표시할 수 있습니다.",
@@ -2325,6 +2328,8 @@ importConfirm: "가져온 확장은 에이전트 프로세스 안에서 에이�
         "작업 패널 브라우저를 탐색하고 페이지를 읽으며 JavaScript를 실행하고 허용 목록에 있는 Chrome DevTools 명령을 보낼 수 있습니다. 쿠키 및 저장소 메서드는 차단됩니다.",
       "usage.read":
         "완료된 턴의 사용량 팩트를 페이지별로 나열합니다(턴당 토큰 카운터). 메시지 내용은 포함되지 않습니다.",
+      "session.autoTitle":
+        "대상 세션의 첫 요청과 첫 답변만 읽고, 사용자가 직접 바꾸지 않은 경우에만 자동 제목을 업데이트할 수 있습니다. 전체 대화 기록은 읽을 수 없습니다.",
     },
   },
   /**

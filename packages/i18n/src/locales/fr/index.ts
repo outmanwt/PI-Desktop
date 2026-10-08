@@ -352,6 +352,7 @@ export const fr = {
     "fileRefMissing": "Aucun fichier ne correspond à {{name}}",
     "fileRefRestricted": "{{name}} se trouve hors des emplacements accessibles à l'application",
     "fileRefLookupFailed": "Impossible de vérifier cette référence de fichier.",
+    "fileManagerUnavailable": "Le gestionnaire de fichiers est indisponible. Le fichier a été ouvert dans le lecteur intégré.",
     "revealFileInFolder": "Afficher dans le dossier",
     "fileRevealFailed": "Impossible d'afficher le fichier dans son dossier.",
     "copyFullPath": "Copier le chemin complet",
@@ -1541,6 +1542,7 @@ sklm: {
     "modelsFetchFailed": "Impossible de charger les modèles.",
     "modelsFetchFailedStatus": "La demande a échoué ({{status}}).",
     "modelsFetchNotFound": "Cette adresse n'a pas de liste de modèles.",
+    "providerUnavailable": "Le fournisseur sélectionné n’est plus disponible.",
     "modelsFetchInvalidResponse": "Le service n'a pas renvoyé de liste de modèles.",
     "modelsEmptyHint": "Saisissez une URL de base pour charger les modèles.",
     "noModelMatches": "Aucun modèle correspondant.",
@@ -2254,7 +2256,8 @@ sklm: {
       "bus.publish": "Envoyer des messages à d'autres plugins",
       "bus.subscribe": "Recevoir des messages d'autres plugins",
       "browser.cdp": "Contrôler le navigateur du panneau de travail",
-      "usage.read": "Lire les statistiques d'utilisation"
+      "usage.read": "Lire les statistiques d'utilisation",
+      "session.autoTitle": "Lire le contexte du premier tour et modifier les titres automatiques"
     },
     "permissionHelp": {
       "ui.panel": "Permet au plugin d'afficher son propre panneau dans l'application.",
@@ -2296,6 +2299,8 @@ sklm: {
       "browser.cdp": "Peut naviguer dans le navigateur du panneau de travail, lire la page, exécuter JavaScript et envoyer des commandes Chrome DevTools sur liste autorisée. Les cookies et les méthodes de stockage sont bloqués.",
       "usage.read":
         "Liste les données d'utilisation des tours terminés (compteurs de tokens par tour, paginés). Aucun contenu de message n'est inclus.",
+      "session.autoTitle":
+        "Peut lire uniquement le premier message et la première réponse des sessions admissibles, puis modifier le titre s'il n'a pas été changé manuellement. Ne peut pas lire la transcription complète.",
     }
   },
   "extensions": {

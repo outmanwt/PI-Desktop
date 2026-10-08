@@ -356,6 +356,7 @@ export const zhTW = {
     fileRefMissing: "沒有匹配 {{name}} 的檔案",
     fileRefRestricted: "{{name}} 不在應用程式允許存取的範圍內",
     fileRefLookupFailed: "無法檢查此檔案參照。",
+    fileManagerUnavailable: "檔案管理器目前無法使用，已在內建檔案檢視器中開啟。",
     revealFileInFolder: "在資料夾中顯示",
     fileRevealFailed: "無法在資料夾中開啟該檔案。",
     copyFullPath: "複製完整位址",
@@ -1524,6 +1525,7 @@ sklm: {
     modelsFetchFailed: "無法獲取模型列表。",
     modelsFetchFailedStatus: "請求失敗（{{status}}）。",
     modelsFetchNotFound: "該地址沒有模型列表。",
+    providerUnavailable: "所選服務已無法使用。",
     modelsFetchInvalidResponse: "服務未返回可用的模型列表。",
     modelsEmptyHint: "填寫地址即可獲取模型列表。",
     refreshModelCatalog: "更新模型目錄",
@@ -2240,6 +2242,7 @@ sklm: {
       "bus.subscribe": "接收其他外掛的訊息",
       "browser.cdp": "控制工作面板瀏覽器",
       "usage.read": "讀取用量統計",
+      "session.autoTitle": "讀取首輪標題內容並更新自動標題",
     },
     permissionHelp: {
       "ui.panel": "允許外掛在應用內顯示獨立面板。",
@@ -2283,6 +2286,8 @@ sklm: {
         "可導航工作面板瀏覽器、讀取頁面、執行 JavaScript，併發送白名單內的 Chrome DevTools 命令。Cookie 與儲存相關方法會被拒絕。",
       "usage.read":
         "分頁列出已完成回合的用量事實（每回合的 token 計數）。不包含任何訊息內容。",
+      "session.autoTitle":
+        "僅能讀取符合條件工作階段的首則提示和首則回覆，並只在標題未被手動修改時更新；無法讀取完整對話記錄。",
     },
   },
   extensions: {

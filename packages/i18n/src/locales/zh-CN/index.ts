@@ -356,6 +356,7 @@ export const zhCN = {
     fileRefMissing: "没有匹配 {{name}} 的文件",
     fileRefRestricted: "{{name}} 不在应用允许访问的范围内",
     fileRefLookupFailed: "无法检查此文件引用。",
+    fileManagerUnavailable: "文件管理器当前不可用，已在内置文件查看器中打开。",
     revealFileInFolder: "在文件夹中显示",
     fileRevealFailed: "无法在文件夹中打开该文件。",
     copyFullPath: "复制完整地址",
@@ -1524,6 +1525,7 @@ sklm: {
     modelsFetchFailed: "无法获取模型列表。",
     modelsFetchFailedStatus: "请求失败（{{status}}）。",
     modelsFetchNotFound: "该地址没有模型列表。",
+    providerUnavailable: "所选服务已不可用。",
     modelsFetchInvalidResponse: "服务未返回可用的模型列表。",
     modelsEmptyHint: "填写地址即可获取模型列表。",
     refreshModelCatalog: "更新模型目录",
@@ -2240,6 +2242,7 @@ sklm: {
       "bus.subscribe": "接收其他插件的消息",
       "browser.cdp": "控制工作面板浏览器",
       "usage.read": "读取用量统计",
+      "session.autoTitle": "读取首轮标题上下文并更新自动标题",
     },
     permissionHelp: {
       "ui.panel": "允许插件在应用内显示独立面板。",
@@ -2284,6 +2287,8 @@ sklm: {
         "可导航工作面板浏览器、读取页面、运行 JavaScript，并发送白名单内的 Chrome DevTools 命令。Cookie 与存储相关方法会被拒绝。",
       "usage.read":
         "分页列出已完成回合的用量事实（每回合 token 计数与会话标题）。不包含任何消息内容。",
+      "session.autoTitle":
+        "只能读取符合条件会话的首条提示和首条回复，并仅在标题未被手动修改时更新；不能读取完整会话记录。",
     },
   },
   extensions: {

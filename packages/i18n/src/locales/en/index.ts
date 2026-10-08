@@ -367,6 +367,7 @@ export const en = {
     fileRefMissing: "No file matches {{name}}",
     fileRefRestricted: "{{name}} is outside the locations this app can access",
     fileRefLookupFailed: "Could not check this file reference.",
+    fileManagerUnavailable: "The File Manager is unavailable. The file was opened in the built-in viewer.",
     revealFileInFolder: "Show in folder",
     fileRevealFailed: "Could not show the file in its folder.",
     copyFullPath: "Copy full path",
@@ -1564,6 +1565,7 @@ sklm: {
     modelsFetchFailed: "Couldn't load models.",
     modelsFetchFailedStatus: "Request failed ({{status}}).",
     modelsFetchNotFound: "This address has no model list.",
+    providerUnavailable: "The selected provider is no longer available.",
     modelsFetchInvalidResponse: "The service did not return a model list.",
     modelsEmptyHint: "Enter a base URL to load models.",
     noModelMatches: "No matching models.",
@@ -2279,6 +2281,7 @@ importConfirm: "Imported extensions run inside the agent process with the same a
       "bus.subscribe": "Receive messages from other plugins",
       "browser.cdp": "Control the work-panel browser",
       "usage.read": "Read usage statistics",
+      "session.autoTitle": "Read first-turn title context and update automatic titles",
     },
     permissionHelp: {
       "ui.panel": "Lets the plugin show its own panel inside the app.",
@@ -2335,6 +2338,8 @@ importConfirm: "Imported extensions run inside the agent process with the same a
         "Can navigate the work-panel browser, read the page, run JavaScript, and send allowlisted Chrome DevTools commands. Cookie and storage methods are blocked.",
       "usage.read":
         "Lists completed-turn usage facts (paginated token counters and session titles). No message content is included.",
+      "session.autoTitle":
+        "Can read only the first prompt and reply for eligible sessions, then replace an automatic title if it has not been manually changed. It cannot read the full transcript.",
     },
   },
   /**

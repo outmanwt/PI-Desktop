@@ -364,6 +364,7 @@ export const tr = {
     fileRefMissing: "{{name}} ile eşleşen dosya yok",
     fileRefRestricted: "{{name}} uygulamanın erişebildiği konumların dışında",
     fileRefLookupFailed: "Bu dosya başvurusu denetlenemedi.",
+    fileManagerUnavailable: "Dosya yöneticisi kullanılamıyor. Dosya yerleşik görüntüleyicide açıldı.",
     revealFileInFolder: "Klasörde göster",
     fileRevealFailed: "Dosya klasörde gösterilemedi.",
     copyFullPath: "Tam yolu kopyala",
@@ -1547,6 +1548,7 @@ sklm: {
     modelsFetchFailed: "Modeller yüklenemedi.",
     modelsFetchFailedStatus: "İstek başarısız ({{status}}).",
     modelsFetchNotFound: "Bu adresin model listesi yok.",
+    providerUnavailable: "Seçilen sağlayıcı artık kullanılamıyor.",
     modelsFetchInvalidResponse: "Servis kullanılabilir bir model listesi döndürmedi.",
     modelsEmptyHint: "Modelleri yüklemek için bir temel URL girin.",
     noModelMatches: "Eşleşen model yok.",
@@ -2261,6 +2263,7 @@ importConfirm: "İçe aktarılan uzantılar ajan sürecinde, ajanın kendi araç
       "bus.subscribe": "Diğer eklentilerden ileti al",
       "browser.cdp": "Çalışma paneli tarayıcısını kontrol et",
       "usage.read": "Kullanım istatistiklerini oku",
+      "session.autoTitle": "İlk tur başlık bağlamını oku ve otomatik başlıkları güncelle",
     },
     permissionHelp: {
       "ui.panel": "Eklentinin uygulama içinde kendi panelini göstermesini sağlar.",
@@ -2315,6 +2318,8 @@ importConfirm: "İçe aktarılan uzantılar ajan sürecinde, ajanın kendi araç
         "Çalışma paneli tarayıcısında gezebilir, sayfayı okuyabilir, JavaScript çalıştırabilir ve izin listesindeki Chrome DevTools komutlarını gönderebilir. Çerez ve depolama yöntemleri engellenir.",
       "usage.read":
         "Tamamlanan turların kullanım verilerini sayfalı olarak listeler (tur başına token sayaçları). Mesaj içeriği dahil değildir.",
+      "session.autoTitle":
+        "Yalnızca uygun oturumların ilk istemini ve ilk yanıtını okuyabilir; başlık elle değiştirilmemişse otomatik başlığı günceller. Tam dökümü okuyamaz.",
     },
   },
   /**

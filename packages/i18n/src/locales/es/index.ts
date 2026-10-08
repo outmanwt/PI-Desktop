@@ -352,6 +352,7 @@ export const es = {
     "fileRefMissing": "Ningún archivo coincide con {{name}}",
     "fileRefRestricted": "{{name}} está fuera de las ubicaciones a las que puede acceder la aplicación",
     "fileRefLookupFailed": "No se pudo comprobar esta referencia de archivo.",
+    "fileManagerUnavailable": "El administrador de archivos no está disponible. El archivo se abrió en el visor integrado.",
     "revealFileInFolder": "Mostrar en carpeta",
     "fileRevealFailed": "No se pudo mostrar el archivo en su carpeta.",
     "copyFullPath": "Copiar ruta completa",
@@ -1541,6 +1542,7 @@ sklm: {
     "modelsFetchFailed": "No se pudieron cargar los modelos.",
     "modelsFetchFailedStatus": "La solicitud falló ({{status}}).",
     "modelsFetchNotFound": "Esta dirección no tiene lista de modelos.",
+    "providerUnavailable": "El proveedor seleccionado ya no está disponible.",
     "modelsFetchInvalidResponse": "El servicio no devolvió una lista de modelos.",
     "modelsEmptyHint": "Ingresar una URL base para cargar modelos.",
     "noModelMatches": "No hay modelos coincidentes.",
@@ -2254,7 +2256,8 @@ sklm: {
       "bus.publish": "Enviar mensajes a otros complementos",
       "bus.subscribe": "Recibir mensajes de otros complementos",
       "browser.cdp": "Controlar el navegador del panel de trabajo",
-      "usage.read": "Leer estadísticas de uso"
+      "usage.read": "Leer estadísticas de uso",
+      "session.autoTitle": "Leer el contexto del primer turno y actualizar títulos automáticos"
     },
     "permissionHelp": {
       "ui.panel": "Permite que el complemento muestre su propio panel dentro de la aplicación.",
@@ -2296,6 +2299,8 @@ sklm: {
       "browser.cdp": "Puede navegar por el navegador del panel de trabajo, leer la página, ejecutar JavaScript y enviar comandos de Chrome DevTools incluidos en la lista permitida. Las cookies y los métodos de almacenamiento están bloqueados.",
       "usage.read":
         "Enumera los datos de uso de los turnos completados (contadores de tokens por turno, paginados). No incluye el contenido de los mensajes.",
+      "session.autoTitle":
+        "Solo puede leer el primer mensaje y la primera respuesta de las sesiones aptas y actualizar el título si nadie lo cambió manualmente. No puede leer la transcripción completa.",
     }
   },
   "extensions": {

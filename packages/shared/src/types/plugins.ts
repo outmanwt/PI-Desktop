@@ -3,12 +3,9 @@ import type { ActivationScope } from "../activation.js";
 import type { TrustedExtensionDiagnostic } from "../trusted-extensions.js";
 
 /**
- * Where the marketplace catalog comes from.
- *
- * `official` keeps its meaning — the official one — and the official one is the
- * plugin center, so a settings row written before the center existed keeps
- * meaning what its author picked instead of needing a migration. `github` and
- * `mirror` are the two backup channels, and `custom` is a URL the user typed.
+ * Legacy persisted marketplace-source values. The application ignores these
+ * values and always uses the official plugin center, but the union remains so
+ * existing settings can be read without a schema migration.
  */
 export type PluginMarketSource = "official" | "github" | "mirror" | "custom";
 
@@ -136,6 +133,21 @@ export type PluginViewMeta = {
   pluginName: string;
   icon?: string;
   order: number;
+};
+
+/**
+ * An API-key provider a loaded plugin has made available in Add Service.
+ * The host resolves the category for the active locale and returns no runtime
+ * code or credentials; the row itself remains host-owned.
+ */
+export type PluginProviderCatalogMeta = {
+  pluginId: string;
+  /** Host provider row id: `plugin:<pluginId>:<contributionId>`. */
+  providerId: string;
+  pluginName: string;
+  category: string;
+  /** Optional one-sentence introduction, resolved for the active app locale. */
+  description?: string;
 };
 
 /** A data-only scenic Settings destination rendered by the host React tree. */
