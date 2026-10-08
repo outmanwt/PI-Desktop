@@ -356,16 +356,13 @@ The app settings JSON optionally stores `thinkingDisplayMode` (`detailed` or
 `compact`). Missing values retain detailed presentation. This additive display
 preference neither rewrites stored reasoning nor changes the database schema.
 
-The same blob optionally stores the prompt-enhancement overrides
-`promptEnhancementCustomTemplate` (the switch that decides whether a stored
-template applies), `promptEnhancementUserTemplate`,
-`promptEnhancementProviderId`, `promptEnhancementModelId`, and
-`promptEnhancementThinkingLevel` (ADR 0121). An absent or blank user template means the
-built-in default applies, so clearing the field stores no key rather than an
-empty string. A non-blank user template must contain the draft variable and stay
-within `PROMPT_ENHANCEMENT_TEMPLATE_MAX_LENGTH`; host-core rejects a write that
-breaks either rule and drops any stored `promptEnhancementSystemPrompt`, which is
-no longer read. No schema version bump is required.
+The settings blob may still contain legacy prompt-enhancement keys from an
+earlier release. They are retained for rollback and downgrade compatibility,
+but the host no longer reads or writes them as active preferences. When the
+user installs and grants the standalone `pi.prompt-enhancement` plugin, Electron
+copies valid legacy values into that plugin's private settings once (see
+`04-ux/12-prompt-enhancement.md`). The migration marker is also stored in the
+plugin's private data directory; the host settings schema does not change.
 
 New config domains (e.g. MCP servers) start as a namespace; they graduate to
 tables only when they need relations or indexes.
@@ -579,9 +576,13 @@ CREATE INDEX idx_session_import_origins_plugin
 - `title_source` records `legacy`, `default`, `manual`, or `generated`. Schema
   v23 classifies pre-existing known placeholder titles as `default` and all
   other titles as `manual`; new session creation and manual rename write the
-  corresponding source. The standalone title plugin can read first-turn text
-  only for `default` sessions and can write only with an exact-title
-  compare-and-set, so a manual rename wins a race.
+  corresponding source. `default` means "not chosen by the user and still
+  replaceable": it covers a new session's placeholder and the deterministic
+  first-prompt fallback, which host-core writes only while the stored title is
+  still a recognized placeholder. A placeholder is recognized in every shipped
+  locale, because the renderer writes its localized `chat.untitledTask` label
+  when it creates a session. The standalone title plugin can read
+  exact-title compare-and-set, so a manual rename wins a race.
 - Import binds every non-empty normalized `projectPath` to `project_id`;
   path-less imports remain `NULL`. Re-importing a deterministic session id
   creates neither another session nor another project row.

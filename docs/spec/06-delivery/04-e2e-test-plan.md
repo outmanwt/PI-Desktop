@@ -1156,8 +1156,8 @@ identify the platform validation still needed.
   OpenAI-compatible provider is also configured.
 - **Steps**: 1) Start an Agent turn in a session against OpenCode Go. 2)
   Capture the provider request headers. 3) Send a follow-up in the same
-  session. 4) Run prompt enhancement and a plugin `agent.complete` one-shot
-  against the same provider. 5) Run `/compact` in the same session and capture
+  session. 4) Run a plugin `agent.complete` one-shot against the same provider.
+  5) Run `/compact` in the same session and capture
   the summary request. 6) Repeat a turn against the generic
   OpenAI-compatible provider.
 - **Expected**: Every OpenCode Go LLM request includes `x-opencode-session`
@@ -1286,7 +1286,8 @@ identify the platform validation still needed.
   record (blank names omitted, last write wins) with localized success feedback.
   Confirm the header list scrolls inside the modal while the underlying model
   panes keep their working area, close the modal, then save. 2) Start an Agent
-  turn, a follow-up, prompt enhancement, and a plugin one-shot. 3) Refresh
+  turn, a follow-up, a plugin `agent.complete` one-shot, and the standalone
+  plugin's Composer transform when installed. 3) Refresh
   `/models` from the form before saving a second change and confirm the
   unsaved headers are sent. 4) Clear the rows and save; confirm adapter
   defaults return. 5) Edit the OAuth account Advanced headers, save, then
@@ -2749,12 +2750,12 @@ identify the platform validation still needed.
 #### E2E-019a: Scratch-directory writes stay out of the workspace (D114)
 
 - **Preconditions**: Agent mode; project open; session started.
-- **Steps**: 1) Ask the agent to produce a temporary/intermediate file (e.g. a one-off script). 2) Observe where it writes and whether a permission card appears. 3) Check `git status` and the work-panel state. 4) Delete the session and check `<data_dir>/scratch/`.
-- **Expected**: The file lands under `<data_dir>/scratch/<sessionId>/` without a permission card; project `git status` stays clean; no file or Review artifact tab opens for the scratch write; deleting the session removes the scratch directory.
+- **Steps**: 1) Ask the agent to produce a temporary/intermediate file (e.g. a one-off script). 2) Observe where it writes and whether a permission card appears. 3) Check `git status` and the work-panel state. 4) On Windows with Git Bash selected, print `$PI_SCRATCH_DIR` and write a file through that path. 5) Delete the session and check `<data_dir>/scratch/`.
+- **Expected**: The file lands under `<data_dir>/scratch/<sessionId>/` without a permission card; project `git status` stays clean; no file or Review artifact tab opens for the scratch write; Git Bash receives a directly usable forward-slash path matching the prompt, while PowerShell and cmd retain native path spelling; deleting the session removes the scratch directory.
 - **Specs linked**: `03-runtime/03-tools-and-permissions.md §4b`, `03-runtime/04-data-storage.md`
 - **Acceptance**: E (temp files isolated from workspace)
 - **Milestone**: M5
-- **Status**: Partially automated (host-core unit tests: dual-root resolve, scratch write/read, PI_SCRATCH_DIR, sweep)
+- **Status**: Partially automated (host-core unit tests: dual-root resolve, scratch write/read, Windows Git Bash `PI_SCRATCH_DIR` formatting, sweep)
 
 #### E2E-019b: Scratch containment matches workspace defenses (D114)
 
@@ -2866,18 +2867,21 @@ identify the platform validation still needed.
   an over-80-Unicode-code-point title. 6) Open **Session Titles: Configure**,
   set the prompt to return a fixed test title, choose the deterministic test
   model, and save. 7) Send the first prompt in the default-title session. 8)
-  Confirm the title stays at its localized default while the turn runs, then
-  wait for `session:turnEnded` and the plugin completion. 9) Manually rename
-  that session and complete another turn.
+  Confirm the Sidebar and topbar immediately show the normalized
+  48-character prompt fallback, then wait for `session:turnEnded` and the
+  plugin completion, which replaces that fallback with the deterministic test
+  title. 9) Manually rename that session and complete another turn. 10) Send
+  the first prompt in another default-title session with the plugin disabled.
 - **Expected**: The saved title is trimmed, displayed across every current
   session-summary surface, and persists after restart. The session stays in
   the same project or Temporary group, its transcript/message count and
   recent-activity ordering do not change, and historical notification title
-  snapshots are unchanged. Empty and overlong values are rejected. Sending a
-  prompt does not change the core title. The enabled plugin replaces a
-  still-default title with the deterministic test title after the completed
-  turn; after a manual rename, a later plugin completion cannot replace it. A
-  session without the plugin remains at its localized default title.
+  snapshots are unchanged. Empty and overlong values are rejected. Sending the
+  first prompt immediately persists the normalized 48-character prompt fallback
+  as a still-replaceable automatic title. With the plugin enabled, that fallback
+  is replaced by the deterministic test title after the completed turn; after a
+  manual rename, a later plugin completion cannot replace it. A session without
+  the plugin keeps its prompt fallback, and a second prompt never changes it.
 - **Specs linked**: `03-runtime/01-ipc-protocol.md`,
   `03-runtime/04-data-storage.md`, `03-runtime/06-host-rpc-protocol.md`,
   `03-runtime/02-agent-runtime.md`, `07-plugins/03-plugin-api.md`,
@@ -3853,9 +3857,10 @@ window; opening a normal panel afterward must still work.
   sidebar renders the derived `src/assets/brand/logo-*.png` asset through `BrandLogo`
   and the docked composer prompt row has no leading
   brand icon or reserved icon slot and its text aligns directly with the input
-  gutter. The right Composer toolbar shows a Bot model × reasoning chip, then
-  a standalone prompt-enhancement Sparkles button, then the single submit
-  slot. The footer Settings and Plugins actions are compact icon buttons;
+  gutter. The right Composer toolbar shows a Bot model × reasoning chip and
+  the single submit slot; an installed plugin may contribute text actions
+  between them. Without such a plugin no prompt-enhancement action appears.
+  The footer Settings and Plugins actions are compact icon buttons;
   Plugins sits immediately to the right of Settings and exposes a localized
   accessible name. Every scoped session-creation control uses the dedicated
   message-plus icon with localized labels and accessible names. `Codex` remains visible only as
@@ -4112,8 +4117,9 @@ window; opening a normal panel afterward must still work.
   Native range dragging
   follows immediately; arrow keys retain focus and update the selection.
   With reduced motion enabled, the target is shown without a transition.
-- **Expected**: The chip is in the right toolbar with a Bot icon, before the
-  standalone prompt-enhancement Sparkles action and Send/Abort; Off omits the
+- **Expected**: The chip is in the right toolbar with a Bot icon; any
+  explicitly installed plugin text actions appear after it and before
+  Send/Abort. The host has no built-in prompt-enhancement action. Off omits the
   level text. The single anchored menu replaces its root
   with an in-place back row and submenu, never opens tabs or a second popover,
   and always reopens at the root. Model search filters sticky provider groups;
@@ -6566,7 +6572,10 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   `AGENTS.md`; `CLAUDE.md` and `.claude/CLAUDE.md` are fallback names. The idle
   follow-up uses changed root content rather than reusing the prior runtime.
   Empty, unreadable, oversized, and out-of-root instruction files do not block
-  the turn; combined UTF-8 content is capped at 32 KiB. A file tool whose target
+  the turn; the global file and the project chain each have an independent
+  32 KiB UTF-8 budget, an oversized global file does not remove project
+  entries, and a truncated file ends with a notice naming its source and the
+  loaded and total byte counts. A file tool whose target
   is outside the project root, or targets the root itself, keeps the root chain
   rather than clearing the project instructions; instruction files are still
   read only from inside the root. A fixture-backed sidecar run verifies that a
@@ -7335,8 +7344,10 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   deadline. 3) Run with an in-range override including values above 300
   seconds. 4) Submit zero, negative, and over-21,600-second overrides.
 - **Expected**: Missing timeout uses exactly 60 seconds and returns
-  `TOOL_TIMEOUT` after process-tree shutdown. In-range values work within
-  1–21,600 seconds; out-of-range values fail validation and never spawn.
+  `TOOL_TIMEOUT` after process-tree shutdown; the error names the effective
+  `timeoutMs` budget and suggests raising it or splitting the command. In-range
+  values work within 1–21,600 seconds; out-of-range values fail validation and
+  never spawn.
 - **Specs linked**: `03-runtime/03-tools-and-permissions.md`,
   `03-runtime/06-host-rpc-protocol.md`, `03-runtime/08-error-codes.md`,
   `03-runtime/16-tool-result-limits.md`, `05-security/01-security.md`, ADR 0054,
@@ -8887,8 +8898,7 @@ must keep splitting are covered by `markdown-blocks.test.mjs`.
   groups, that the summary line above the Change action names the account
   holding the current default, and that typing an account label filters to that
   account's models while typing the vendor name still reaches both. Repeat the
-  same check on the Settings prompt-enhancement model picker. 5) Resolve
-  and use each account separately, including model discovery and one streamed
+  5) Resolve and use each account separately, including model discovery and one streamed
   turn per account. 6) Start the device-code login on a second vendor, including
   Meta/Muse when available, then press Cancel while the dialog is polling;
   confirm no row or credential is left. 7) Remove the first Anthropic account,
@@ -13206,7 +13216,8 @@ are withdrawn with ADR 0165.
   PI-Desktop may already have an equivalent provider.
 - **Steps**:
   1. Open Settings → Models and expand **Import from other tools**. Confirm
-     the inline workbench is idle until Scan is activated.
+     its scan explanation appears as inline text without a help icon, and the
+     workbench remains idle until Scan is activated.
   2. Scan model configuration. Confirm source groups start expanded, rows
      show name, model count, host, and an API key / No API key badge, and no
      secret value appears in the UI or scan IPC payload.
@@ -13222,7 +13233,8 @@ are withdrawn with ADR 0165.
 - **Expected**: Explicit scan only (D007). Stored API keys land in the host
   secret store. Only equivalent providers (normalized URL + API style + same
   credential) skip; different credentials at one endpoint remain separate.
-  No protocol or schema version bump.
+  The expanded importer shows its scan explanation directly without a
+  question-mark control. No protocol or schema version bump.
 - **Specs linked**: `04-ux/06-settings-ia.md`,
   `04-ux/08-component-spec.md` §18.5, `03-runtime/01-ipc-protocol.md`,
   `03-runtime/11-provider-model-system.md`, ADR 0179, D342
@@ -13239,12 +13251,15 @@ are withdrawn with ADR 0165.
   includes userinfo and query credentials.
 - **Steps**:
   1. Open Settings → Skills, select Project and a project, then expand Scan
-     other tools. Confirm opening the panel does not scan. Scan, select a skill,
-     choose its copy or link mode, and import it.
+     other tools. Confirm its scan explanation is visible without a help icon
+     and that opening the panel does not scan. Scan, select a skill, choose its
+     copy or link mode, and import it.
   2. Confirm the new skill belongs to the selected project. Change the project
      and confirm the prior candidates and selection are cleared.
   3. Open Settings → MCP, select Project and the same project, expand Scan
-     other tools, scan, select the disabled MCP candidate, and import it.
+     other tools. Confirm its scan explanation is visible without a help icon
+     and that opening the panel does not scan. Scan, select the disabled MCP
+     candidate, and import it.
   4. Confirm the server belongs to that project, remains disabled, and the
      candidate row shows only the URL host without userinfo, path, or query.
   5. Change project scope and confirm the prior MCP candidates and selection
@@ -13252,7 +13267,8 @@ are withdrawn with ADR 0165.
 - **Expected**: Skills and MCP scans start only after an explicit Scan action.
   Project scans and writes carry the selected project path; scope changes clear
   stale candidates. MCP disabled state is preserved and URL credentials never
-  render in candidate metadata.
+  render in candidate metadata. Scan explanations render inline; the skill
+  mode explanation remains on its existing help control.
 - **Specs linked**: `04-ux/06-settings-ia.md`,
   `04-ux/08-component-spec.md` §18.3 / §18.6 / §18.7, ADR 0319 / D645
 - **Acceptance**: F (persistence), Security, Quality
@@ -13691,83 +13707,61 @@ are withdrawn with ADR 0165.
 - **Status**: Source-contract-covered; clean-machine Windows x64 and ARM64
   qualification remains runner validation (run only in a capable environment when this surface changes)
 
-#### E2E-218: Prompt enhancement preserves pasted image chips
+#### E2E-218: An installed Composer transform preserves inline attachment chips
 
-- **Preconditions**: A configured, authenticated model is available; an Agent
-  session has a Composer draft containing one pasted image chip followed by
-  ordinary prompt text.
-- **Steps**: 1) Paste the image into the Composer and type a prompt after the
-  chip. 2) Click `Enhance prompt`. 3) Observe the request and the updated
-  Composer draft. 4) Send the enhanced draft and inspect the dispatched
-  attachment metadata.
-- **Expected**: The Sparkles action is enabled with the image chip present.
-  The one-shot request contains only the visible prompt text, completes
-  successfully, and rewrites that text. The image chip remains at the front of
-  the draft, remains removable, and is dispatched exactly once with the
-  enhanced prompt. Enhancement does not create a transcript row or alter the
-  attachment bytes. The request is built from the built-in system prompt and the
-  effective user template: with no saved override the built-in template applies;
-  with an override saved in Settings, that text applies instead (E2E-259).
+- **Preconditions**: A plugin that contributes a Composer transform is
+  installed, enabled, and granted `composer.transform`. An Agent session has a
+  draft with ordinary prompt text and inline file and image chips.
+- **Steps**: 1) Add file and image chips to the draft. 2) Invoke the plugin's
+  Composer action. 3) Observe the plugin request and updated draft. 4) Undo the
+  transform and confirm the draft and chips return.
+- **Expected**: The plugin action is visible only while its plugin is loaded and
+  its permission is granted. The transform callback receives the visible draft
+  text and optional model key, but no image bytes, attachment metadata, file
+  reference token, session id, or conversation history. The file and image
+  chips remain in place and removable through the transform and its one-step
+  undo. The transform does not create a transcript row. Without the plugin, no
+  prompt-enhancement action appears.
 - **Specs linked**: `04-ux/12-prompt-enhancement.md`,
-  `04-ux/08-component-spec.md` §11.3/§11.7–11.8,
-  `03-runtime/01-ipc-protocol.md` §13,
-  `03-runtime/02-agent-runtime.md`
+  `07-plugins/02-plugin-manifest-schema.md`,
+  `07-plugins/03-plugin-api.md`,
+  `07-plugins/13-plugin-permissions-matrix.md`
 - **Acceptance**: C (conversation & stream), Quality
 - **Milestone**: M6+
-- **Status**: Unit/source-contract-covered; full UI journey Draft (run only in a capable environment when this surface changes)
+- **Status**: Covered by `test:e2e:plugin-ui-slots` for plugin-process dispatch,
+  draft-only update, inline file/image chip preservation, one-step undo, and no
+  transcript row. Attachment sending is covered by the separate Composer send
+  E2E.
 
-#### E2E-259: Prompt enhancement honors the configurable user template
+#### E2E-259: Installing the prompt-enhancement plugin migrates preferences once
 
-- **Preconditions**: A configured, authenticated model is available; an Agent
-  session has an empty Composer draft; Settings -> AI is reachable.
-- **Steps**: 1) Open Settings -> AI and inspect the Prompt enhancement card with
-  no saved override: the custom-template switch is off, disabled, and explains
-  that saving a template unlocks it, and the row offers only the edit icon
-  button. 2) Confirm no field for the system prompt is offered
-  anywhere on the card or in the editor. 3) Open the editor; while the sheet is
-  open, clear the draft variable token out of the user template and attempt to
-  save. 4) Use the insert action to put the draft variable back, save, and
-  confirm the sheet closes and the switch is now enabled and on. 5) Enhance a
-  Chinese draft
-  that also names a file such as `prompt-templates.ts`. 6) Enhance a
-  mixed-language draft. 7) Resolve a model that returns the rewritten draft
-  wrapped in quotation marks. 8) Reopen the editor, press `Escape`, and confirm
-  the edit was abandoned. 9) Reopen the editor, edit the template, and close it
-  by clicking the backdrop. 10) Turn the switch off and enhance again, then turn
-  it back on and confirm the user's text is still there. 11) Pin an enhancement
-  model, disable that provider, and enhance once more. 12) Confirm the reasoning row
-  defaults to `Off (no reasoning)` and offers no follow-the-session entry, then
-  raise it and enhance again to see the difference.
-- **Expected**: With no override the editor opens on the built-in default text,
-  so the displayed value equals the value in force, and the card shows no
-  system-prompt field at all. Saving a user template without the draft variable
-  is refused locally with a message, and no write reaches host-core. With no
-  saved template the switch is disabled; after saving one it is enabled and on
-  without a separate toggle. `Escape` and
-  a backdrop click abandon the edit, leaving the stored value unchanged. With the
-  switch off, enhancement uses the built-in template even though a custom one is
-  stored; with it on, the stored template applies. Either way the request's system
-  prompt is the built-in one and its user message contains the draft inside
-  `<draft>` tags with the placeholder substituted. The rewritten draft keeps the
-  draft's language, carries no language meta note, keeps `prompt-templates.ts`
-  byte-identical, and has the wrapping quotation pair removed. Turning the switch
-  off and on again leaves the user's stored text intact. A disabled pinned
-  enhancement provider falls back to the Composer's current model, the
-  enhancement still succeeds, and the fallback is logged as a warning. The
-  reasoning row defaults to `Off (no reasoning)`, offers every canonical level
-  plus `Off`, has no follow-the-session entry, and a level the model cannot
-  honour is clamped rather than rejected. An enhancement that receives no provider response fails
-  within about 60 seconds with `TIMEOUT` and a message naming the budget and the
-  setting to change; it does not hang and does not silently retry on the session
-  model.
-- **Specs linked**: `04-ux/12-prompt-enhancement.md` §3/§5,
-  `04-ux/06-settings-ia.md`, `03-runtime/01-ipc-protocol.md` §13,
-  `03-runtime/04-data-storage.md`, ADR 0121, D447
-- **Acceptance**: C (conversation & stream), Quality
+- **Preconditions**: The profile contains legacy host prompt-enhancement
+  settings and has no `pi.prompt-enhancement` plugin data. The standalone plugin
+  is available from a configured catalog or repository; a Composer session is
+  ready.
+- **Steps**: 1) With the plugin absent, inspect the Composer and Settings and
+  confirm there is no prompt-enhancement action or settings card. 2) Install the
+  plugin explicitly and grant its requested permissions. 3) Inspect the
+  plugin-owned settings and confirm valid legacy model, thinking, and enabled
+  custom-template values were copied before the plugin loaded. 4) Transform a
+  draft, undo it, and send it; confirm the action does not create a transcript
+  row. 5) Clear a migrated plugin value, reload the plugin, and confirm the
+  migration does not restore it. 6) Uninstall the plugin and confirm legacy host
+  values remain.
+- **Expected**: Installing the plugin is the only path that exposes the action.
+  Existing plugin settings win over legacy values; invalid or inactive custom
+  templates are skipped. A private marker makes migration one-time. Clearing a
+  plugin setting does not cause a later import, and uninstalling the plugin does
+  not delete legacy host values. Plugin transforms preserve draft/session race
+  safety and attachment chip positions.
+- **Specs linked**: `04-ux/12-prompt-enhancement.md`,
+  `04-ux/06-settings-ia.md`, `03-runtime/04-data-storage.md`,
+  `07-plugins/03-plugin-api.md`, ADR 0324
+- **Acceptance**: C (conversation & stream), Quality, compatibility
 - **Milestone**: M6+
-- **Status**: Unit/RPC/source-contract-covered for the template resolution,
-  validation, and quote stripping; full UI journey Draft (run only in a capable
-  environment when this surface changes)
+- **Status**: Migration and plugin-runtime integration tests cover the copy,
+  precedence, one-time marker, permission gate, and callback; full UI journey
+  Draft (run only in a capable environment when this surface changes)
 
 #### E2E-220: Local MCP control drives a running desktop
 
@@ -16574,12 +16568,15 @@ the latest destination. These assertions measure work counts, not device FPS.
   host data directory, local image HTTP fixture, no production credentials.
 - **Steps:** Choose a model in Advanced, cancel and verify no change; save and
   replace it through another provider's Advanced settings. Clear the binding via
-  the test settings API to verify recovery. Generate same-prompt variants and distinct images,
-  edit a generated image, inspect partial failures, then restart the host/session.
-  Attempt the tool in a durable Plan session and verify no HTTP request occurs.
+  the test settings API to verify recovery. Generate same-prompt variants and
+  distinct images; confirm each result appears once in the conversation gallery
+  while the assistant confirms completion in text. Edit a generated image,
+  inspect partial failures, then restart the host/session. Attempt the tool in a
+  durable Plan session and verify no HTTP request occurs.
 - **Expected:** One image binding persists without changing the chat default;
   generated files, edit sources and transcript references survive restart.
-  Images render in chat; unconfigured errors navigate to Models settings.
+  Each successful image appears once in its result card instead of being
+  repeated as a Markdown embed; unconfigured errors navigate to Models settings.
 - **Specs:** 03-runtime/21-image-generation; 03-runtime/13-model-catalog-and-selection.
 - **Acceptance:** Configured image generation/editing, safe cancellation and persistence.
 - **Milestone:** Post-MVP.
@@ -17053,7 +17050,10 @@ host-created files. The full app's file-preview viewer is covered separately.
   its own Classifiers group and absent when an existing row changes service,
   and that no Jev card is on the model configuration page yet. 2) Open the Jev
   form, paste a sentinel key and Check and save: the fixture answers the check,
-  the key reaches Host secure storage, Jev is on, and the card appears.
+  the key reaches Host secure storage, Jev is on, and the card appears. Confirm
+  AI services (with catalog status and refresh) precede Jev and image generation,
+  and that the card's privacy explanation is available from its heading help
+  control instead of as a persistent paragraph.
   3) Resolve a session launch with Jev enabled, then disabled and in Plan mode.
   4) Through the runtime's deferred catalog, request Jev in Agent mode and
   inspect Plan/Goal catalogs. 5) Call `JevClassify` with one choice, one score
@@ -17067,7 +17067,10 @@ host-created files. The full app's file-preview viewer is covered separately.
   the refusal is reported with TypeSafe's status. The card is on the page only
   once Jev has been added, and it leaves when the key does. The UI never returns
   the key to settings state, and removal disables Jev before deleting it. Only
-  an enabled Agent launch reads the key and passes it ephemerally to the sidecar.
+  the Jev title, key status and controls occupy the card; explanatory privacy
+  copy appears on demand from the heading help control. AI services stay above
+  Jev, followed by image generation. An enabled Agent launch reads the key and
+  passes it ephemerally to the sidecar.
   `JevClassify` appears in the Agent's deferred catalog only with a key and
   never in Plan or Goal. Closing the dialog cancels an in-flight check the same
   way a refused key does: nothing stored, nothing enabled. The fixture receives
@@ -17142,3 +17145,9 @@ host-created files. The full app's file-preview viewer is covered separately.
   Playwright can be supplied through `PI_TEST_PLAYWRIGHT`). Only the model server
   is simulated in the Electron flow. The fixture profile and screenshots stay
   under `.artifacts/` for inspection; no user profile or paid model is used.
+
+### E2E-COMPOSER-configured-context-window
+
+- **Steps:** Save a 500K user context limit for a model whose catalog publishes 1M. Open the Composer model list, then send a short message and inspect context usage. Repeat with a catalog-owned limit and with discovery unavailable.
+- **Expected:** The user-configured row and context inspector show 500K; a catalog-owned row follows the published limit; a configured model without discovery retains its saved context label. Model selection remains unchanged.
+- **Status:** Automated unit regression in `apps/desktop/test/composer-models.test.mjs` covers user overrides, catalog inheritance, and missing discovery; the full save → picker → message → context-inspector path remains a manual validation scenario.

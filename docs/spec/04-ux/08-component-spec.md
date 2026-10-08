@@ -442,9 +442,10 @@ visually distinct from list content.
 | Archived row | Hidden by default; visible in the explicit archived view |
 | No retained project | Compact Open project entry; standalone Sessions rows remain available |
 | Empty group | Muted one-line empty state; group create action remains available |
-| Default session title | New task/New chat (localized where applicable) until the user or an installed title plugin sets one |
-| Plugin-generated session title | A title plugin may replace the default after the first completed turn when its permission is granted |
-| Manual session title | User-defined title remains stable across refresh and renderer restart; plugin updates use a host compare-and-set and never overwrite it |
+| Default session title | New task/New chat (localized where applicable) until the first prompt, the user, or an installed title plugin sets one |
+| First prompt title | A normalized 48-character prompt fallback appears immediately and is stored as a still-replaceable automatic title |
+| Plugin-generated session title | A title plugin may replace that automatic title after the first completed turn when its permission is granted |
+| Manual session title | User-defined title remains stable across refresh and renderer restart; automatic titles (local fallback or plugin) never overwrite it |
 | Footer idle | Transparent 58px band; build and action controls remain visually quiet |
 | Footer hover/focus | Only the targeted control receives the semantic hover/focus treatment |
 | Profile menu open | Profile trigger is active; 280px menu opens 8px above the footer |
@@ -2820,16 +2821,16 @@ reasoning-level control.
   beside its selection indicator.
 - The right toolbar owns the remaining-capacity context inspector (when the
   newest assistant turn has usage) immediately left of one combined model ×
-  reasoning-level chip, then the standalone prompt-enhancement action and the
-  single Stop/Send submit slot (D347). The inspector trigger shows the ring
+  reasoning-level chip. Explicitly installed plugins may add user-invoked
+  Composer text actions after it; there is no built-in prompt-enhancement
+  action. The single Stop/Send submit slot follows plugin actions (D347). The inspector trigger shows the ring
   and percentage only. The chip shows Bot, the current model name, and the
   current canonical reasoning level value separated by `·`; `off` omits the
   level text. The canonical value is rendered as-is (`low`, `high`, `xhigh`,
-  or `max`) and is not localized. The
-  prompt-enhancement action shows Sparkles while idle, uses the shared
-  `.tool-spinner` and localized `Enhancing…` label while running, and remains
-  a one-shot draft rewrite action. Inline file-reference chips, including
-  pasted image chips, do not disable this action and remain in the draft.
+  or `max`) and is not localized. A contributed text action uses its plugin
+  title and shows a spinner while its callback runs. The callback receives only
+  the draft and optional model key; the host strips and restores inline file
+  reference tokens, including pasted image chips, around the transform.
 - MainPane and the chat surface keep a 450px hard minimum. The composer toolbar
   remains a single, non-wrapping row as its container narrows: the mode and
   permission labels stay on one line and ellipsize within their chips, while
@@ -2837,8 +2838,8 @@ reasoning-level control.
   560px it hides the reasoning level label, at 480px it tightens the model label
   cap, and at the 450px floor it becomes a 32px icon-only trigger. The trigger's
   menu and accessible name retain the complete model/reasoning selection. The
-  context inspector hides its percentage at the floor and the enhancement
-  loading state becomes icon-only, preserving the action hit targets without
+  context inspector hides its percentage at the floor and plugin action
+  loading states remain icon-only, preserving the action hit targets without
   clipping or overlapping toolbar content. Home and thread-docked composers
   use the same responsive rules.
 - The combined chip opens one anchored menu above itself. The menu starts with

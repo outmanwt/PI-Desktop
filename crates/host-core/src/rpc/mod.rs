@@ -743,9 +743,9 @@ fn drop_session_side_data(st: &AppState, id: &str) {
 const DEFAULT_LARGE_PASTE_THRESHOLD: i64 = 600;
 const MIN_LARGE_PASTE_THRESHOLD: i64 = 1;
 const MAX_LARGE_PASTE_THRESHOLD: i64 = 1_000_000;
-/// Upper bound for one stored prompt-enhancement template, in characters.
-/// Mirrored by `PROMPT_ENHANCEMENT_TEMPLATE_MAX_LENGTH` in
-/// `packages/shared/src/prompt-enhancement.ts`; keep the two in step.
+/// Upper bound for a legacy prompt-enhancement template, in characters. The
+/// setting remains validated while older profiles and config-sync backups can
+/// still contain it for the optional plugin's one-time migration.
 const MAX_PROMPT_ENHANCEMENT_TEMPLATE_CHARS: usize = 8000;
 /// The placeholder a usable user template must carry.
 const PROMPT_ENHANCEMENT_DRAFT_VARIABLE: &str = "{{draft}}";
@@ -2639,6 +2639,22 @@ async fn handle_request(
             let ok = sessions::rename_session(&st.db, id, &title)
                 .map_err(|e| rpc_err(1000, e.to_string(), "INTERNAL"))?;
             Ok(json!({ "ok": ok }))
+        }
+        "session.deriveTitle" => {
+            let id = params
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| rpc_err(1002, "id required", "INVALID_PARAMS"))?;
+            let title = params
+                .get("title")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| rpc_err(1002, "title required", "INVALID_PARAMS"))?;
+            let title = sessions::normalize_session_title(title)
+                .map_err(|e| rpc_err(1002, e.to_string(), "INVALID_PARAMS"))?;
+            let st = state.lock().await;
+            let updated = sessions::derive_session_title(&st.db, id, &title)
+                .map_err(|e| rpc_err(1000, e.to_string(), "INTERNAL"))?;
+            Ok(json!({ "updated": updated }))
         }
         "session.appendMessage" => {
             let session_id = params
