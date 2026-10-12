@@ -49,6 +49,7 @@ Examples:
 - `pi-desktop/agent/prompt`
 - `pi-desktop/agent/steer`
 - `pi-desktop/agent/stop`
+- `pi-desktop/agent/stop-subagents`
 - `pi-desktop/agent/abort`
 - `pi-desktop/agent/event/message`
 - `pi-desktop/agent/askTool/resolve`
@@ -303,6 +304,21 @@ cancel running tools, or open a second concurrent turn. An idle session returns
 The renderer owns the removable, in-memory queued-prompt list per session. It
 calls this channel only for a queued item's **Send now** action and releases
 that item through the ordinary `agent/prompt` flow after the terminal event.
+
+### 5.2a stop-subagents
+
+`pi-desktop/agent/stop-subagents` accepts `{ sessionId, delegationIds? }` and
+returns `{ pending: string[] }`. Omitting IDs selects all currently running
+delegates in that session; an explicitly empty or malformed selection is
+rejected. The local Desktop route forwards to `agent.stopSubagents` on the
+existing sidecar runtime and never starts a runtime or prompts the model.
+Native/remote session controls are not exposed by this local route.
+
+It reuses `TaskStop` cancellation, waiting up to five seconds for termination.
+Unconfirmed IDs are returned in `pending`; their durable status stays running
+until settlement. The parent and unselected delegates remain active. Existing
+terminal Task snapshots carry settlement through the normal persistence and
+renderer event path; no synthetic tool call is added to model history.
 
 ### 5.3 abort
 
@@ -1110,7 +1126,6 @@ through `providers.create` on `modelConfig/importRun`. Re-importing a
 matching endpoint, API style, and credential is skipped; a different
 credential at the same endpoint remains independent. OAuth tokens from those
 tools are never copied. No host protocol or storage schema version bump.
-`memory/importScan` and `memory/importRun` are Electron-only WorkBuddy memory import channels. The scan reads `~/.workbuddy/MEMORY.md` and `~/.workbuddy/memory/*.md` (or `$WORKBUDDY_HOME` equivalents), returning bounded Markdown candidates with title, byte size, and mtime. The run accepts a selected project path and candidate payloads, calls host-owned `project.memory/get` and `project.memory/set`, preserves existing entries, and skips duplicate normalized content. WorkBuddy session import additionally scans `$WORKBUDDY_HOME/projects/**/*.jsonl` (default `~/.workbuddy/projects`), converts user/assistant messages and paired function-call results into the existing session transcript shape, and never imports malformed or oversized files. WorkBuddy Skills reuse the external skill scan/import channels from `$WORKBUDDY_HOME/skills` (default `~/.workbuddy/skills`). These imports are explicit only; no source is copied on startup, and persisted tool-output paths are read only when contained by the configured WorkBuddy projects root.
 
 A regenerate or edit-resend truncates the durable transcript before appending
 its new user turn. `agent/prompt` accepts `truncateFromMessageId` — the identity
@@ -1165,8 +1180,10 @@ assistant message before `message_end`. Error messages persist with the
 transcript but are excluded from restored model context.
 
 The context inspector consumes two additive usage signals. `MessageUsage` is
-the provider-reported assistant usage and `responseDurationMs` is the elapsed
-sidecar stream time used to display output tokens per second. `ToolTokenUsage`
+the provider-reported assistant usage and `responseDurationMs` is the
+elapsed request duration used to display output tokens per second. Completed
+responses use pi-ai 1.1.0's monotonic `AssistantMessage.durationMs`; when
+that value is unavailable, the sidecar stopwatch remains the fallback. `ToolTokenUsage`
 is a runtime estimate from the tool call arguments and result; providers do not
 report per-tool allocation, so the renderer labels these rows as estimates and
 never merges them into the exact provider total. Older peers may omit all of
@@ -1518,7 +1535,8 @@ Stopping a session aborts its in-flight user MCP tool calls. The client sends
 `notifications/cancelled` for each active request without closing a connection
 used by other sessions; a completed or canceled tool call is never replayed.
 Cancellation stops the local wait, while a server may ignore the notification
-and finish an already started side effect.
+and finish an already started side effect. A request that times out is
+cancelled the same way, with reason `timeout`; `initialize` is never cancelled.
 
 Desktop-only channels scan configuration written by other agent tools on the
 same machine — Claude Desktop (`claude_desktop_config.json` on macOS, Windows
@@ -1580,6 +1598,15 @@ one-liner.
 - `skills.read({ id, level?, projectPath? })` → `{ skill, body }`
 - `skills.remove({ id, level?, projectPath? })`
 - `skills.setEnabled({ id, enabled, level, projectPath? })`
+- `skills.disabledBuiltins()` → `{ disabled: string[] }`
+- `skills.setBuiltinEnabled({ id, enabled })` → `{ id, enabled }`
+
+Built-in skill activation is global and defaults to enabled. Host stores only
+disabled IDs in `<data>/agent-capabilities/skill-builtins.json`, separately
+from the scanned user-skill state. Renderer IPC lists bundled entries with
+their effective enabled state and sets one entry's global state. The
+corresponding Desktop channels are `pi-desktop/skill/builtin/list` and
+`pi-desktop/skill/builtin/setEnabled`.
 
 The list contains frontmatter-derived `name` and `description`, not the body.
 Only the description enters the prompt, and the body is fetched when the model
@@ -1966,8 +1993,8 @@ not touch the tray icon: D216 (ADR 0078) creates one at startup on every
 platform, and minimize-to-tray needs it whichever close behavior is stored.
 
 Maximize/unmaximize changes also emit
-`window/event/maximized`. Unknown actions fail. These Electron-only channels
-do not cross into host-core and do not change the host RPC protocol version.
+`window/event/maximized`. Unknown actions fail. These window-control channels
+remain Electron-only and do not change the host RPC protocol version.
 The preload exposes no arbitrary BrowserWindow bounds or resize channel.
 Windows retains Electron's native frameless edge/corner hit testing with
 `thickFrame: false`; the renderer does not submit window geometry.
@@ -1977,8 +2004,17 @@ the window-control state and fullscreen event use the tracked value.
 `window/setBackgroundColor` remains Electron-local and main-renderer-only. Its
 optional `cornerRadius` is an integer from 0 to 24 DIP; omission restores the
 Windows main-window default of 12 DIP, matching the global `--radius-md` token.
-Main applies the native shape on theme selection and resize, and clears the
-corner cutouts during maximize/fullscreen.
+On Windows build 22000 and later, Main maps radius 0 to the native square
+preference and every positive radius to the DWM system-rounded preference;
+maximized/fullscreen states request square corners. Windows chooses the actual
+positive radius. The top-level surface stays opaque, and an alpha background is
+flattened over the built-in background for the resolved theme. Earlier Windows
+builds retain the existing `contentView` clip and native shape behavior. Linux
+keeps the native window background, and macOS keeps its existing vibrancy
+behavior. The internal Main-to-Host Core DWM call checks that the HWND belongs
+to the Electron process; it is not exposed through preload, renderer IPC, or the
+plugin API. This does not alter the `window/setBackgroundColor` request or
+response and remains pending Windows native qualification.
 Malformed values fail with `INVALID_ARGUMENT` before changing the background.
 Plugin panel chrome uses a separate Electron-local
 `pi-plugin-panel-window-control` channel with the same four semantic actions,
@@ -2416,22 +2452,23 @@ unchanged. See [provider configuration](12-provider-config-schema.md).
 ## 15. Cloud configuration sync
 
 The Settings → Cloud sync page uses the following renderer-to-Main channels;
-all are forwarded to the Host-owned `configSync.*` RPC methods. The page is a
-development-build-only surface for now; the channels and their Host contracts
-are unchanged:
+all are forwarded to the Host-owned `configSync.*` RPC methods. The page is
+available in all builds and carries an Experimental badge. Channel names stay
+stable; connection inputs
+and results use the S3-only contract in `types/config-sync.ts`:
 
 | IPC channel | Host method | contract |
 |---|---|---|
 | `pi-desktop/configSync/getState` | `configSync.getState` | redacted status, category selections, preview counts, and pending approval summaries |
-| `pi-desktop/configSync/test` | `configSync.test` | WebDAV capability probe using a temporary object; no configuration is persisted |
+| `pi-desktop/configSync/test` | `configSync.test` | S3 conditional-write probe and verified cleanup; returns `{ ok: true, conditionalWrites: true }` without persisting configuration |
 | `pi-desktop/configSync/configure` | `configSync.configure` | validates the endpoint, stores encrypted local sync metadata, and enables the vault |
-| `pi-desktop/configSync/syncNow` | `configSync.syncNow` | runs one Host-owned reconciliation cycle |
+| `pi-desktop/configSync/syncNow` | `configSync.syncNow` | runs one Host-owned two-way sync or local-snapshot backup, according to the saved mode |
 | `pi-desktop/configSync/pause` | `configSync.pause` | pauses or resumes this device only |
 | `pi-desktop/configSync/unlock` | `configSync.unlock` | unlocks the local vault for the current process/device |
 | `pi-desktop/configSync/approve` / `reject` | `configSync.approve` / `configSync.reject` | records a digest-bound local activation decision |
 | `pi-desktop/configSync/mapProject` | `configSync.mapProject` | binds one opaque project/group identity to one or more explicitly selected local folders, preserving primary-root order |
-| `pi-desktop/configSync/listHistory` | `configSync.listHistory` | lists redacted reachable revision metadata only |
-| `pi-desktop/configSync/restore` | `configSync.restore` | creates a new propagated revision from an explicitly acknowledged historical revision and stages local approvals/recovery |
+| `pi-desktop/configSync/listHistory` | `configSync.listHistory` | lists the saved mode's latest 30 indexed revisions; never emitted as a state-change event |
+| `pi-desktop/configSync/restore` | `configSync.restore` | sync publishes a new shared revision with propagation acknowledgment; backup restores locally without changing cloud history; both retain recovery/approvals |
 | `pi-desktop/configSync/changePassword` | `configSync.changePassword` | CAS-rewraps the vault key header without returning keys or secret values |
 | `pi-desktop/configSync/disconnect` | `configSync.disconnect` | removes local sync metadata and keys; it does not delete remote vault data |
 
@@ -2443,7 +2480,7 @@ transport/lifecycle coordinator and does not schedule, merge, encrypt, or
 apply configuration.
 
 A manual sync reports `configSync.progress` while it runs: the phase
-(`capture`, `download`, `merge`, `upload`, `apply`, or `cleanup`), the units
+(`capture`, `download`, `merge`, `upload`, or `apply`), the units
 done and total for that phase, and the bytes when they are known. A long upload
 of many resource objects is therefore not an interface with nothing to show.
 Background polls report nothing, since only the manual path has a caller

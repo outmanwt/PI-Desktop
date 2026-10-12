@@ -26,7 +26,6 @@ const SKILL_SOURCE_KEY: Record<ExternalSkillSourceKind, string> = {
   "claude-project": "settings.importAgentScanSourceClaudeProject",
   "pi-user": "settings.importAgentScanSourcePiUser",
   "pi-project": "settings.importAgentScanSourcePiProject",
-  "workbuddy-user": "settings.importAgentScanSourceWorkBuddy",
 };
 
 export function AgentSkillImportPanel({

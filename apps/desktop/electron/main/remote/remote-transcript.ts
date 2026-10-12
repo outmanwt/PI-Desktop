@@ -15,26 +15,30 @@ import type {
   SessionSummary,
   UiMessage,
 } from "@pi-desktop/shared";
+import { parseRemoteSessionId } from "./backend-router.js";
 
 /** Build the flat summary a session list / header row renders. */
 export function racpSessionToSummary(
   remoteSessionId: string,
   session: RacpSession,
   messageCount: number,
-  hostInfo?: { hostKey?: string; hostLabel?: string },
+  hostLabel?: string,
 ): SessionSummary {
-  const projectPath =
-    session.projectId ||
-    session.workspaceLabel ||
-    (hostInfo?.hostKey ? `remote://${hostInfo.hostKey}` : undefined);
   return {
     id: remoteSessionId,
     source: "remote",
+    remoteHostKey: parseRemoteSessionId(remoteSessionId)?.hostKey,
+    remoteHostLabel: hostLabel ?? parseRemoteSessionId(remoteSessionId)?.hostKey,
+    remoteProjectId: session.projectId,
+    remoteWorkspaceLabel: session.workspaceLabel,
+    capabilities: {
+      canPrompt: true, canStop: true, canRefresh: true,
+      canConfigureModel: false, canAttach: false, canSteer: false,
+      canEditMessages: false, canUseLocalTools: false, canUseTerminal: false,
+      canReadWorkspace: true,
+    },
     title: session.title,
     messageCount,
-    projectPath,
-    ...(hostInfo?.hostKey ? { hostKey: hostInfo.hostKey } : {}),
-    ...(hostInfo?.hostLabel ? { hostLabel: hostInfo.hostLabel } : {}),
     // RACP's mode and permission-mode literals are a subset of the renderer's,
     // so they pass through unchanged; `inherit` is desktop-only and never sent.
     mode: session.mode,
@@ -54,11 +58,13 @@ export function racpSessionToSummary(
 export function snapshotToSessionDetail(
   remoteSessionId: string,
   snapshot: RacpSessionSnapshot,
-  hostInfo?: { hostKey?: string; hostLabel?: string },
+  hostLabel?: string,
 ): SessionDetail {
-  const messages = snapshot.items.map((item) => item.content as UiMessage);
+  const items = new Map(snapshot.items.map((item) => [item.id, item]));
+  for (const item of snapshot.activeItems ?? []) items.set(item.id, item);
+  const messages = [...items.values()].map((item) => item.content as UiMessage);
   return {
-    ...racpSessionToSummary(remoteSessionId, snapshot.session, messages.length, hostInfo),
+    ...racpSessionToSummary(remoteSessionId, snapshot.session, messages.length, hostLabel),
     messages,
     hasMoreBefore: snapshot.hasMoreHistory,
     hasMoreAfter: false,

@@ -10,12 +10,7 @@ import { promises as fs, type Stats } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export type SkillSourceKind =
-  | "claude-user"
-  | "claude-project"
-  | "pi-user"
-  | "pi-project"
-  | "workbuddy-user";
+export type SkillSourceKind = "claude-user" | "claude-project" | "pi-user" | "pi-project";
 
 export interface SkillCandidate {
   source: SkillSourceKind;
@@ -241,12 +236,6 @@ function piUserDir(home: string, env: NodeJS.ProcessEnv): string {
   return path.join(home, ".agents", "skills");
 }
 
-function workbuddyUserDir(home: string, env: NodeJS.ProcessEnv): string {
-  const override = env.WORKBUDDY_HOME;
-  if (override && override.trim()) return path.join(override, "skills");
-  return path.join(home, ".workbuddy", "skills");
-}
-
 export async function scanExternalSkills(opts: SkillScanOptions = {}): Promise<SkillScanResult> {
   const home = opts.homeDir ?? os.homedir();
   const env = opts.env ?? process.env;
@@ -256,7 +245,6 @@ export async function scanExternalSkills(opts: SkillScanOptions = {}): Promise<S
   if (opts.projectPath) {
     parts.push(await scanDirectory("claude-project", path.join(opts.projectPath, ".claude", "skills")));
   }
-  parts.push(await scanDirectory("workbuddy-user", workbuddyUserDir(home, env)));
   parts.push(await scanDirectory("pi-user", piUserDir(home, env)));
   if (opts.projectPath) {
     parts.push(await scanDirectory("pi-project", path.join(opts.projectPath, ".agents", "skills")));

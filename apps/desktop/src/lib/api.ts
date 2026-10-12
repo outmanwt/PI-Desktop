@@ -1,5 +1,9 @@
 import { projectPlanHistory } from "./plan-history";
+import { guardRemoteInvocation } from "./remote-ipc-safety";
+import { isRemoteSession, safeSessionSummary } from "./remote-session-safety";
 import type {
+  ConfigSyncTestInput,
+  ConfigSyncTestResult,
   ScheduledTaskRun,
   ActivationScope,
   AgentCapabilityMove,
@@ -17,6 +21,8 @@ import type {
   SpeechSynthesizeResult,
   SpeechTranscribeRequest,
   AgentStopResponse,
+  AgentStopSubagentsRequest,
+  AgentStopSubagentsResponse,
   AgentQueueChangedEvent,
   AgentQueuePushRequest,
   QueuedTurnSummary,
@@ -85,6 +91,7 @@ import type {
   SessionCollaborationSummary,
   TraySessionPreferences,
   ToolPermissionResolution,
+  BuiltinSkillRecord,
   UserSkillInput,
   UserSkillRecord,
   UserSubagentInput,
@@ -101,12 +108,20 @@ import type {
   PlanResolutionResult,
   PlanningStateEvent,
   PlansPendingResult,
+  RemoteHostProjectsResult,
+  RemoteHostBrowseProjectsResult,
+  RemoteHostRegisterProjectResult,
+  RemoteHostSessionsResult,
+  RemoteHostCreateSessionRequest,
+  RemoteHostCreateSessionResult,
+  RemoteHostSyncProvidersRequest,
+  RemoteHostSyncProvidersResult,
   RemoteHostBootstrapRequest,
   RemoteHostBootstrapResult,
   RemoteHostPairRequest,
   RemoteHostPairResult,
-  RemoteHostSshProfile,
   RemoteHostSummary,
+  RemoteInteractionUpdate,
   UpdateState,
   WindowControlAction,
   CloseBehavior,
@@ -140,7 +155,7 @@ import {
   JEV_API_KEY_SECRET_REF,
 } from "@pi-desktop/shared";
 
-export type ImportSource = "claude-code" | "opencode" | "codex" | "pi" | "workbuddy";
+export type ImportSource = "claude-code" | "opencode" | "codex" | "pi";
 // One definition, owned by the shared package (the host and sidecar use the
 // same shape); re-exported so existing renderer imports keep working.
 import type {
@@ -176,8 +191,7 @@ export type ExternalSkillSourceKind =
   | "claude-user"
   | "claude-project"
   | "pi-user"
-  | "pi-project"
-  | "workbuddy-user";
+  | "pi-project";
 
 export interface ExternalSkillCandidate {
   source: ExternalSkillSourceKind;
@@ -220,42 +234,6 @@ export interface ExternalSkillImportPayload {
   mode?: "copy" | "link";
   items: ExternalSkillImportItem[];
 }
-
-export type ExternalMemorySourceKind = "workbuddy-user";
-
-export interface ExternalMemoryCandidate {
-  source: ExternalMemorySourceKind;
-  sourcePath: string;
-  id: string;
-  title: string;
-  content: string;
-  bytes: number;
-  updatedAt: string;
-  warnings: string[];
-}
-
-export interface ExternalMemoryScanResult {
-  candidates: ExternalMemoryCandidate[];
-  sources: Array<{
-    kind: ExternalMemorySourceKind | "error";
-    path: string;
-    exists: boolean;
-    error?: string;
-    count: number;
-  }>;
-}
-
-export interface ExternalMemoryImportPayload {
-  projectPath: string;
-  items: Array<Pick<ExternalMemoryCandidate, "source" | "sourcePath" | "id" | "title" | "content">>;
-}
-
-export interface ExternalMemoryImportRunResult {
-  imported: ExternalMemoryImportPayload["items"];
-  skipped: Array<{ item: ExternalMemoryImportPayload["items"][number]; reason: "duplicate" }>;
-  failed: Array<{ item: ExternalMemoryImportPayload["items"][number]; error: string }>;
-}
-
 
 export interface ExternalSkillImportRunResult {
   imported: Array<{ item: ExternalSkillImportItem; skill: UserSkillRecord }>;
@@ -348,6 +326,7 @@ declare global {
 }
 
 async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  guardRemoteInvocation(channel, args[0]);
   if (!window.piDesktop?.invoke) {
     throw new Error("piDesktop preload bridge unavailable");
   }
@@ -366,8 +345,8 @@ async function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
 
 function normalizeSession(session: SessionSummary): SessionSummary {
   return {
-    ...session,
-    source: session.source ?? "desktop",
+    ...safeSessionSummary(session),
+    source: isRemoteSession(session) ? "remote" : session.source ?? "desktop",
     mode: normalizeMode((session as { mode?: unknown }).mode),
   };
 }
@@ -375,7 +354,7 @@ function normalizeSession(session: SessionSummary): SessionSummary {
 function normalizeSessionDetail(detail: SessionDetail | null): SessionDetail | null {
   return detail
     ? {
-        ...detail,
+        ...safeSessionSummary(detail),
         messages: projectPlanHistory(detail.messages, detail.planHistory ?? [], detail.id),
         mode: normalizeMode((detail as { mode?: unknown }).mode),
       }
@@ -717,16 +696,8 @@ export const api = {
   configSyncGetState: () => invoke<ConfigSyncState>(IPC.invoke.configSyncGetState),
   configSyncConfigure: (input: ConfigSyncConfigureInput) =>
     invoke<ConfigSyncState>(IPC.invoke.configSyncConfigure, input),
-  configSyncTest: (input: Omit<ConfigSyncConfigureInput, "backupPassword"> & { backupPassword?: string }) =>
-    invoke<{
-      ok: boolean;
-      conditionalWrites: boolean;
-      appendOnly: boolean;
-      message?: string;
-    }>(
-      IPC.invoke.configSyncTest,
-      input,
-    ),
+  configSyncTest: (input: ConfigSyncTestInput) =>
+    invoke<ConfigSyncTestResult>(IPC.invoke.configSyncTest, input),
   configSyncSyncNow: () => invoke<ConfigSyncState>(IPC.invoke.configSyncSyncNow),
   configSyncPause: (paused: boolean) =>
     invoke<ConfigSyncState>(IPC.invoke.configSyncPause, { paused }),
@@ -1005,6 +976,8 @@ export const api = {
     invoke<AgentCompactResponse>(IPC.invoke.agentCompact, req),
   abort: (sessionId: string) =>
     invoke(IPC.invoke.agentAbort, { sessionId }),
+  stopSubagents: (req: AgentStopSubagentsRequest) =>
+    invoke<AgentStopSubagentsResponse>(IPC.invoke.agentStopSubagents, req),
   stop: (sessionId: string, turnId?: string) =>
     invoke<AgentStopResponse>(IPC.invoke.agentStop, { sessionId, ...(turnId ? { turnId } : {}) }),
   queuePrompt: (req: AgentQueuePushRequest) =>
@@ -1197,12 +1170,12 @@ export const api = {
       IPC.invoke.skillMarketFetch,
       { entry },
     ),
-  scanExternalMemory: () =>
-    invoke<ExternalMemoryScanResult>(IPC.invoke.memoryImportScan),
-  runExternalMemoryImport: (payload: ExternalMemoryImportPayload) =>
-    invoke<ExternalMemoryImportRunResult>(IPC.invoke.memoryImportRun, payload),
 
   // --- Skills the user owns -------------------------------------------------
+  listBuiltinSkills: () =>
+    invoke<{ builtins: BuiltinSkillRecord[] }>(IPC.invoke.skillBuiltinList),
+  setBuiltinSkillEnabled: (id: string, enabled: boolean) =>
+    invoke<{ id: string; enabled: boolean }>(IPC.invoke.skillBuiltinSetEnabled, { id, enabled }),
   listUserSkills: (query?: AgentCapabilityQuery) =>
     invoke<{ skills: UserSkillRecord[] }>(IPC.invoke.skillList, query),
   createUserSkill: (skill: UserSkillInput) =>
@@ -1561,11 +1534,23 @@ export const api = {
     );
   },
   onBrowserPreview: (
-    listener: (event: { sessionId: string; path?: string; url?: string }) => void,
+    listener: (event: {
+      sessionId: string;
+      path?: string;
+      url?: string;
+      tabId?: string;
+      revealOnly?: boolean;
+    }) => void,
   ) => {
     if (!window.piDesktop?.on) return () => undefined;
     return window.piDesktop.on(IPC.event.browserPreview, (payload) =>
-      listener(payload as { sessionId: string; path?: string; url?: string }),
+      listener(payload as {
+        sessionId: string;
+        path?: string;
+        url?: string;
+        tabId?: string;
+        revealOnly?: boolean;
+      }),
     );
   },
   onAgentEvent: (listener: (event: AgentEventEnvelope) => void) => {
@@ -1663,12 +1648,33 @@ export const api = {
    */
   bootstrapRemoteHost: (request: RemoteHostBootstrapRequest) =>
     invoke<RemoteHostBootstrapResult>(IPC.invoke.remoteHostBootstrap, request),
-  /** Scan the local OpenSSH config without reading private key contents. */
-  scanRemoteHostSshProfiles: () =>
-    invoke<{ profiles: RemoteHostSshProfile[] }>(IPC.invoke.remoteHostSshScan),
   /** Close and drop a paired host by its stable routing key. */
   removeRemoteHost: (hostKey: string) =>
     invoke<{ ok: true }>(IPC.invoke.remoteHostRemove, { hostKey }),
+  reconnectRemoteHost: (hostKey: string) =>
+    invoke<{ host: RemoteHostSummary }>(IPC.invoke.remoteHostReconnect, { hostKey }),
+  remoteHostBrowseProjects: (hostKey: string, path?: string) =>
+    invoke<RemoteHostBrowseProjectsResult>(IPC.invoke.remoteHostBrowseProjects, { hostKey, ...(path === undefined ? {} : { path }) }),
+  remoteHostProjects: (hostKey: string) =>
+    invoke<RemoteHostProjectsResult>(IPC.invoke.remoteHostProjects, { hostKey }),
+  registerRemoteProject: (hostKey: string, path: string) =>
+    invoke<RemoteHostRegisterProjectResult>(IPC.invoke.remoteHostRegisterProject, { hostKey, path }),
+  remoteHostSessions: (hostKey: string) =>
+    invoke<RemoteHostSessionsResult>(IPC.invoke.remoteHostSessions, { hostKey }),
+  createRemoteSession: (request: RemoteHostCreateSessionRequest) =>
+    invoke<RemoteHostCreateSessionResult>(IPC.invoke.remoteHostCreateSession, request),
+  syncRemoteProviders: (request: RemoteHostSyncProvidersRequest) =>
+    invoke<RemoteHostSyncProvidersResult>(IPC.invoke.remoteHostSyncProviders, request),
+  remoteWorkspaceList: (sessionId: string, path = "") =>
+    invoke<{ entries: FsEntry[] }>(IPC.invoke.fsList, { sessionId, path }),
+  remoteWorkspaceRead: (sessionId: string, path: string) =>
+    invoke<FsReadResult>(IPC.invoke.fsRead, { sessionId, path }),
+  remoteWorkspaceDiff: (sessionId: string) =>
+    invoke<WorkspaceDiff>(IPC.invoke.workspaceDiff, { sessionId }),
+  onRemoteInteractions: (listener: (event: RemoteInteractionUpdate) => void) => {
+    if (!window.piDesktop?.on) return () => undefined;
+    return window.piDesktop.on(IPC.event.remoteInteractions, (payload) => listener(payload as RemoteInteractionUpdate));
+  },
   onSessionsChanged: (
     listener: (event: {
       reason?: string;

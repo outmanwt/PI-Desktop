@@ -21,12 +21,25 @@ export type SessionCapabilities = {
   canPrompt: boolean;
   canStop: boolean;
   canRefresh: boolean;
+  /** Absent preserves the existing local behavior. */
+  canConfigureModel?: boolean;
+  canAttach?: boolean;
+  canSteer?: boolean;
+  canEditMessages?: boolean;
+  canUseLocalTools?: boolean;
+  canUseTerminal?: boolean;
+  canReadWorkspace?: boolean;
 };
 
 export type SessionSummary = {
   id: string;
   /** Transcript authority. Omitted by older hosts and normalized to `desktop`. */
   source?: SessionSource;
+  /** Display-only remote identity; never a local project path. */
+  remoteHostKey?: string;
+  remoteHostLabel?: string;
+  remoteProjectId?: string;
+  remoteWorkspaceLabel?: string;
   /** Native sessions expose only safe actions in the first continuation slice. */
   capabilities?: SessionCapabilities;
   /** Stable machine-readable reason why a native session cannot be continued. */
@@ -35,10 +48,6 @@ export type SessionSummary = {
   /** Number of messages in the current canonical transcript. */
   messageCount: number;
   projectPath?: string;
-  /** Remote host routing key when this session lives on a paired remote host. */
-  hostKey?: string;
-  /** Human-friendly label of the remote host (e.g. "Home PC", "台式机"). */
-  hostLabel?: string;
   modelId?: string;
   providerId?: string;
   mode: Mode;
