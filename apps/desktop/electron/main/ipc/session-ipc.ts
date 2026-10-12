@@ -29,6 +29,7 @@ import { readSessionCollaboration } from "../services/session-collaboration";
 import { searchSessionsAcrossSources } from "../services/session-search";
 import { getActiveRemoteHostsBoot, type RemoteHostsBoot } from "../bootstrap/remote-hosts";
 import type { IpcRegistrar } from "./types";
+import { getActiveRemoteHostsBoot } from "../bootstrap/remote-hosts.js";
 
 type RuntimeSession = {
   id?: string;
@@ -168,7 +169,7 @@ export function registerSessionIpc({
           source: "desktop",
         })),
         ...native.sessions,
-        ...remoteSessions,
+        ...(getActiveRemoteHostsBoot()?.sessionSummaries() ?? []),
       ].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt))),
     };
   });
