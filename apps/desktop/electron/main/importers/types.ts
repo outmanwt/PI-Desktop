@@ -1,6 +1,6 @@
 import { redactValue } from "../logger";
 
-export type ExternalSource = "claude-code" | "opencode" | "codex" | "pi" | "workbuddy";
+export type ExternalSource = "claude-code" | "opencode" | "codex" | "pi";
 
 export interface ExternalSessionSummary {
   source: ExternalSource;

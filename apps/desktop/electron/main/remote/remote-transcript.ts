@@ -24,10 +24,6 @@ export function racpSessionToSummary(
   messageCount: number,
   hostLabel?: string,
 ): SessionSummary {
-  const projectPath =
-    session.projectId ||
-    session.workspaceLabel ||
-    (hostInfo?.hostKey ? `remote://${hostInfo.hostKey}` : undefined);
   return {
     id: remoteSessionId,
     source: "remote",
@@ -43,9 +39,6 @@ export function racpSessionToSummary(
     },
     title: session.title,
     messageCount,
-    projectPath,
-    ...(hostInfo?.hostKey ? { hostKey: hostInfo.hostKey } : {}),
-    ...(hostInfo?.hostLabel ? { hostLabel: hostInfo.hostLabel } : {}),
     // RACP's mode and permission-mode literals are a subset of the renderer's,
     // so they pass through unchanged; `inherit` is desktop-only and never sent.
     mode: session.mode,

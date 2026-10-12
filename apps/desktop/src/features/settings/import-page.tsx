@@ -2,4 +2,3 @@
 export { ModelConfigImportPanel } from "./imports/ModelConfigImportPanel";
 export { AgentSkillImportPanel } from "./imports/AgentSkillImportPanel";
 export { AgentMcpImportPanel } from "./imports/AgentMcpImportPanel";
-export { MemoryScanImportPanel } from "./imports/MemoryScanImportPanel";

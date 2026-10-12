@@ -98,9 +98,12 @@ test("sidebar sessions drag onto project groups without a menu fallback", () => 
   assert.match(sidebar, /dropProjectKey === entry\.key \? "is-drop-target" : ""/);
   assert.doesNotMatch(sidebar, /data-action="move-session-to-project"/);
   assert.doesNotMatch(sidebar, /nav\.moveToProject/);
-  assert.match(sidebar, /remoteSession/);
-  assert.match(sidebar, /if \(entry\.remote\) return;/);
-  assert.match(sidebar, /projectEntryKey\(dragged\.projectPath \?\? "", dragged\.hostKey\)/);
+  assert.match(sidebar, /disabled=\{Boolean\(runningSessions\[session\.id\]\)\}/);
+  // A drag inside the same project group must not offer itself as a target.
+  assert.match(
+    sidebar,
+    /normalizeProjectPath\(dragged\.projectPath\) === entry\.key/,
+  );
 });
 
 test("dropping a folder on the projects list adds or switches that project", () => {
@@ -173,9 +176,13 @@ test("drag state cannot outlive the dragged row or trust a stale id", () => {
   assert.match(dropBlock, /const sessionId = sessionIdFromDrag\(event\.dataTransfer\);/);
   assert.match(sidebar, /Array\.from\(dataTransfer\.types\)\.includes\(SESSION_DRAG_MIME\)/);
   assert.doesNotMatch(sidebar, /sessionIdFromDrag\(event\.dataTransfer\) \?\? draggingSessionId/);
-  assert.match(dropBlock, /if \(!dragged \|\| dragged\.source === "remote" \|\| dragged\.hostKey\) return;/);
+  assert.match(dropBlock, /if \(!dragged\) return;/);
+  // A drop without a session payload belongs to the native folder handler.
   assert.match(dropBlock, /const dragged = sessionId/);
-  assert.match(sidebar, /onDragLeave=\{\(event\) => \{[\s\S]*?event\.currentTarget\.contains\(relatedTarget\)/);
+  assert.match(
+    sidebar,
+    /onDragLeave=\{\(event\) => \{[\s\S]*?event\.currentTarget\.contains\(relatedTarget\)/,
+  );
 });
 
 test("session move and prompt setup share a per-session critical section", () => {

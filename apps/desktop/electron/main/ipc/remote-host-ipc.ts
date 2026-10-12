@@ -23,7 +23,6 @@ import {
   type RemoteHostPairRequest,
   type RemoteHostPairResult,
   type RemoteHostRemoveRequest,
-  type RemoteHostSshProfile,
   type RemoteHostSummary,
 } from "@pi-desktop/shared";
 import { app } from "electron";
@@ -32,7 +31,6 @@ import {
   type RemoteHostsBoot,
 } from "../bootstrap/remote-hosts";
 import { exchangePairingToken } from "../remote/racp-remote-host-client";
-import { scanSshConfig } from "../remote/ssh-config";
 import type { IpcRegistrar } from "./types";
 import { registerRemoteSessionIpc } from "./remote-session-ipc.js";
 
@@ -103,18 +101,6 @@ export function registerRemoteHostIpc(options: RegisterRemoteHostIpcOptions): vo
     async (): Promise<{ hosts: RemoteHostSummary[] }> => {
       const boot = requireBoot(getRemoteHostsBoot());
       return { hosts: await boot.list() };
-    },
-  );
-
-  registrar.handle(
-    IPC.invoke.remoteHostSshScan,
-    async (): Promise<{ profiles: RemoteHostSshProfile[] }> => {
-      try {
-        return { profiles: await scanSshConfig() };
-      } catch (error) {
-        log("warn", "local SSH config scan failed", { error: String(error) });
-        return { profiles: [] };
-      }
     },
   );
 

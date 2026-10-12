@@ -72,8 +72,6 @@ function createRelocatedUpdater(
   return platform === "win32" ? new RelocatedNsisUpdater(baseCachePath) : null;
 }
 
-// Fork build: the packaged update feed is outmanwt/PI-Desktop, so the release
-// page must not send users to the upstream vastsa repository.
 export const RELEASES_URL = "https://github.com/outmanwt/PI-Desktop/releases/latest";
 
 const AUTO_CHECK_INITIAL_DELAY_MS = 15_000;
@@ -115,22 +113,6 @@ export type UpdaterOptions = {
   distribution?: WindowsDistribution;
 };
 
-/**
- * True when the configured feed repository has published no release yet.
- *
- * electron-updater's GitHub provider requests
- * `github.com/<owner>/<repo>/releases/latest`; GitHub answers 404 while the
- * repository has no non-prerelease release, and the provider rethrows that
- * HttpError as ERR_UPDATER_LATEST_VERSION_NOT_FOUND with the status code at
- * the start of the wrapped message. For a fork that has not published a
- * release this means "nothing to update to", not a failing update check.
- */
-function isMissingReleaseError(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null)?.code;
-  if (code !== "ERR_UPDATER_LATEST_VERSION_NOT_FOUND") return false;
-  const message = (error as { message?: unknown } | null)?.message;
-  return typeof message === "string" && /\b404\b/.test(message);
-}
 export class AppUpdaterController {
   private readonly logger: Logger;
   private readonly send: (channel: string, payload: unknown) => void;
@@ -654,16 +636,6 @@ export class AppUpdaterController {
         if (this.getState().status === "checking") {
           this.setState({ status: "idle", error: undefined });
         }
-        return this.state;
-      }
-      if (isMissingReleaseError(error)) {
-        this.setState({
-          status: "up-to-date",
-          availableVersion: undefined,
-          releaseNotes: undefined,
-          progressPercent: undefined,
-          error: undefined,
-        });
         return this.state;
       }
       // The 'error' listener already recorded state; rethrow for manual

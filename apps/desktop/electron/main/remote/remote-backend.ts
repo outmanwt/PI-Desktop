@@ -48,8 +48,6 @@ export type RemoteRacpClient = {
 export type RemoteBackendOptions = {
   /** The host's routing key; the outward id of a forked session reuses it. */
   hostKey: string;
-  /** Human-friendly label shown beside remote projects. */
-  hostLabel?: string;
   client: RemoteRacpClient;
   hostLabel?: string;
   onSnapshot?: (snapshot: RacpSessionSnapshot) => void;
@@ -92,7 +90,7 @@ const HANDLED_CHANNELS: ReadonlySet<string> = new Set([
 ]);
 
 export function createRemoteBackend(options: RemoteBackendOptions): RemoteBackend {
-  const { hostKey, hostLabel, client } = options;
+  const { hostKey, client } = options;
   const newRequestId = options.newRequestId ?? (() => globalThis.crypto.randomUUID());
   const history = createRemoteHistory(options);
   const context = (idempotencyKey?: string): RacpRequestContext => ({

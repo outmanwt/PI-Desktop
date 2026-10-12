@@ -15,10 +15,6 @@ const page = readFileSync(
   new URL("../src/components/settings/RemoteHostsPage.tsx", import.meta.url),
   "utf8",
 );
-const panel = readFileSync(
-  new URL("../src/components/settings/SshProfilesPanel.tsx", import.meta.url),
-  "utf8",
-);
 const settingsNav = readFileSync(
   new URL("../src/lib/settings-search.ts", import.meta.url),
   "utf8",
@@ -56,18 +52,7 @@ test("remote hosts omits instructional copy", () => {
   assert.doesNotMatch(page, /settings-row-desc/);
   assert.doesNotMatch(page, /hint=\{/);
   assert.doesNotMatch(page, /settings\.remoteHosts\.(overview|sshBody|pairBody|emptyBody)/);
-  assert.match(panel, /Scan SSH config|settings\.remoteHosts\.scanSsh/);
-  assert.match(panel, /api\.bootstrapRemoteHost\(\{/);
-});
-
-test("SSH profiles uses plugin-style card tiles, glyph, and tag badges", () => {
-  assert.match(panel, /className="plugins-glyph"/);
-  assert.match(panel, /className="plugins-row-name"/);
-  assert.match(panel, /className="plugins-tag"/);
-  assert.match(panel, /className="plugins-row-meta"/);
-  assert.match(panel, /className="plugins-row-controls"/);
-  assert.match(cssRule(".settings-remote-ssh-profile"), /background:\s*var\(--ds-tile\)/);
-  assert.match(cssRule(".settings-remote-ssh-profile"), /border-radius:\s*var\(--radius-md-plus\)/);
+  assert.doesNotMatch(page, /<SettingsCard title=\{t\("settings\.remoteHosts\.listTitle"\)\}/);
 });
 
 test("the remote-hosts destination is marked experimental", () => {

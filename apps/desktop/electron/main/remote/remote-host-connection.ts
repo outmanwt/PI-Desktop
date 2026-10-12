@@ -32,10 +32,6 @@ export interface RemoteHostConnection {
   /** Register and watch a user-reachable session without waiting for its host event. */
   ensureSession(hostSessionId: string): Promise<void>;
   close(): Promise<void>;
-  /**
-   * Query the remote host for its durable sessions.
-   */
-  listSessions(): Promise<RacpSession[]>;
 }
 
 export function createRemoteHostConnection(options: RemoteHostConnectionOptions): RemoteHostConnection {

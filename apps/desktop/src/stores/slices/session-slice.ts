@@ -467,7 +467,6 @@ export function createSessionSlice({
           commitSelection(retainedMessages, true);
         } else if (
           summary &&
-          summary.source !== "remote" &&
           get().activeSessionId !== id &&
           sessionIsReusableEmpty(summary, {
             running: runningAtSelection,
@@ -717,7 +716,7 @@ export function createSessionSlice({
       if (!source) throw new Error(i18n.t("errors.sessionNotFound"));
       if (!sessionAllows(source, "canEditMessages")) return;
 
-      if (source.source !== "remote" && source.projectPath) {
+      if (source.projectPath) {
         if (
           !sessionMatchesProject(
             { projectPath: state.activeProjectPath },

@@ -154,7 +154,7 @@ function runScript(scriptPath, env) {
 test("shellQuote produces a single-quoted literal that cannot escape", () => {
   assert.equal(shellQuote("plain"), "'plain'");
   // The one character a single-quoted string cannot contain ends the literal,
-  // emits an escaped quote, and reopens it �?the POSIX `'\''` dance.
+  // emits an escaped quote, and reopens it — the POSIX `'\''` dance.
   assert.equal(shellQuote("it's"), "'it'\\''s'");
   // Command substitution and variable expansion are inert inside quotes; a
   // caller-supplied URL must never execute.
